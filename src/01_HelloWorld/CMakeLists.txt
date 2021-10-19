@@ -32,30 +32,8 @@ target_link_libraries( ${TARGET_NAME}
 add_compile_definitions( PROJECT_NAME="${TARGET_NAME}" )
 add_compile_definitions( PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" )
 
-
-
-set ( SHADER_BINARY_DIR "${BINARIES_DIRECTORY}/${TARGET_NAME}" )
-
-add_custom_command(
-  COMMAND
-    ${CMAKE_COMMAND} -E make_directory ${SHADER_BINARY_DIR}
-  OUTPUT ${SHADER_BINARY_DIR}
-  COMMENT "Creating ${SHADER_BINARY_DIR}"
-)
-
-foreach( source IN LISTS SHADER_FILES )
-  get_filename_component(FILENAME ${source} NAME)
-  add_custom_command(
-    COMMAND
-      ${glslc_executable}
-      #      -MD -MF ${SHADER_BINARY_DIR}/${FILENAME}.d
-      -o ${SHADER_BINARY_DIR}/${FILENAME}.spv
-      ${source}
-    OUTPUT ${SHADER_BINARY_DIR}/${FILENAME}.spv
-    DEPENDS ${source} ${SHADER_BINARY_DIR}
-    COMMENT "Compiling ${FILENAME}"
+add_spv_compilation(
+  TARGET_NAME ${TARGET_NAME}
+  SHADER_FILES ${SHADER_FILES}
+  OUT_SPV_DIR "${BINARIES_DIRECTORY}/${TARGET_NAME}"
   )
-  list(APPEND SPV_SHADERS ${SHADER_BINARY_DIR}/${FILENAME}.spv)
-endforeach()
-
-add_custom_target(shaders ALL DEPENDS ${SPV_SHADERS})

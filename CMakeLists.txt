@@ -31,6 +31,9 @@ if( UNIX )
 endif( UNIX )
 
 
+# Include extra utilities.
+include ( cmake/utilities.cmake )
+
 
 # Compile 3rd-party.
 add_subdirectory( 3rdparty/glfw )
