@@ -3,11 +3,11 @@ cmake_minimum_required( VERSION 3.9.6 FATAL_ERROR )
 project ( CourseCG )
 
 # Packages
-find_package( Vulkan REQUIRED FATAL_ERROR )
-#find_package( VulkanSDK REQUIRED FATAL_ERROR )
+find_package( Vulkan REQUIRED COMPONENTS glslc )
+find_program( glslc_executable NAMES glslc HINTS Vulkan::glslc )
 
 
-# Set the C/C++ specified in the projects as requirements
+# Set the C/C++ specified in the projects as requirements.
 set( CMAKE_CXX_STANDARD_REQUIRED ON )
 set( CMAKE_C_STANDARD_REQUIRED ON )
 set( CMAKE_CXX_STANDARD 17 )
@@ -31,8 +31,10 @@ if( UNIX )
 endif( UNIX )
 
 
-# Compile 3rd-party
+
+# Compile 3rd-party.
 add_subdirectory( 3rdparty/glfw )
 
-# Sub projects
+
+# Sub projects.
 add_subdirectory( src/01_HelloWorld )
