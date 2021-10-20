@@ -41,3 +41,4 @@ add_subdirectory( 3rdparty/glfw )
 
 # Sub projects.
 add_subdirectory( src/01_Tutorial_Triangle )
+add_subdirectory( src/02_Tutorial_ObjModel )
