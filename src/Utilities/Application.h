@@ -29,9 +29,7 @@ public:
     ~Application();
 
 
-    void run() {
-        mainLoop();
-    }
+    void RunMainLoop();
 
 
 protected:
@@ -83,8 +81,6 @@ private:
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imagesInFlight;
     size_t currentFrame = 0;
-
-    void mainLoop();
 
     void cleanup();
 

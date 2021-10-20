@@ -27,7 +27,7 @@ int main()
 
     try
     {
-        app.run();
+        app.RunMainLoop();
     }
     catch ( const std::exception& e )
     {

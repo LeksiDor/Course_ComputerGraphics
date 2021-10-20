@@ -82,8 +82,7 @@ Application::~Application()
 }
 
 
-
-void Application::mainLoop()
+void Application::RunMainLoop()
 {
     while ( !glfwWindowShouldClose( window ) )
     {
