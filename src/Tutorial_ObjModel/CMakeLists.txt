@@ -17,6 +17,7 @@ endif ( MSVC )
 
 
 target_include_directories ( ${TARGET_NAME}
+	PUBLIC ../Utilities
 	PUBLIC ${Vulkan_INCLUDE_DIR}
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glfw/include
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glm
@@ -24,10 +25,12 @@ target_include_directories ( ${TARGET_NAME}
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/tinyobjloader
 	)
 
+add_dependencies( ${TARGET_NAME} Utilities )
 
 target_link_libraries( ${TARGET_NAME}
 	${Vulkan_LIBRARY}
 	glfw
+	Utilities
 	)
 
 
