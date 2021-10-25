@@ -1,5 +1,7 @@
 #include "VulkanBase.h"
 
+#include <iostream>
+
 
 const VulkanInfo& GetVulkanInfo()
 {
@@ -48,4 +50,12 @@ void DestroyDebugUtilsMessengerEXT( VkInstance instance, VkDebugUtilsMessengerEX
     if (func != nullptr) {
         func(instance, debugMessenger, pAllocator);
     }
+}
+
+
+VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData )
+{
+    if ( messageSeverity >= GetVulkanInfo().VulkanMessageLevelToDisplay )
+        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+    return VK_FALSE;
 }
