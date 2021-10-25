@@ -4,8 +4,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <vector>
 #include <optional>
+#include <string>
+#include <vector>
 
 
 // Set up this struct globally before using Vulkan.
@@ -59,6 +60,9 @@ struct SwapChainSupportDetails
 
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData );
+
+
+std::vector<char> LoadShaderCode( const std::string& filename );
 
 
 #endif // VULKANBASE_H
