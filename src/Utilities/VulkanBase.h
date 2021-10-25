@@ -65,4 +65,26 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback( VkDebugUtilsMessageSeverityF
 std::vector<char> LoadShaderCode( const std::string& filename );
 
 
+VkShaderModule CreateShaderModule( VkDevice device, const std::vector<char>& code );
+
+VkSurfaceFormatKHR ChooseSwapSurfaceFormat( const std::vector<VkSurfaceFormatKHR>& availableFormats );
+
+VkPresentModeKHR ChooseSwapPresentMode( const std::vector<VkPresentModeKHR>& availablePresentModes );
+
+VkExtent2D ChooseSwapExtent( GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities );
+
+SwapChainSupportDetails QuerySwapChainSupport( VkPhysicalDevice device, VkSurfaceKHR surface );
+
+bool IsDeviceSuitable( VkPhysicalDevice device, VkSurfaceKHR surface );
+
+bool CheckDeviceExtensionSupport( VkPhysicalDevice device );
+
+QueueFamilyIndices FindQueueFamilies( VkPhysicalDevice device, VkSurfaceKHR surface );
+
+std::vector<const char*> GetRequiredExtensions();
+
+bool CheckValidationLayerSupport();
+
+
+
 #endif // VULKANBASE_H
