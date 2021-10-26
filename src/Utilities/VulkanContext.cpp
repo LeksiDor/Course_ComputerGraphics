@@ -55,6 +55,16 @@ void VulkanContext::Destroy()
 
     vkDestroySurfaceKHR( instance, surface, nullptr );
     vkDestroyInstance( instance, nullptr );
+
+    window = nullptr;
+    instance = VK_NULL_HANDLE;
+    debugMessenger = VK_NULL_HANDLE;
+    surface = VK_NULL_HANDLE;
+    physicalDevice = VK_NULL_HANDLE;
+    device = VK_NULL_HANDLE;
+    familyIndices = {};
+    graphicsQueue = VK_NULL_HANDLE;
+    presentQueue = VK_NULL_HANDLE;
 }
 
 
