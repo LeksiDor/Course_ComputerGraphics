@@ -15,6 +15,8 @@ class VulkanContext
 {
 public:
 
+    // Constructors and desctuctor.
+
     VulkanContext() = default;
 
     void Init(
@@ -25,6 +27,9 @@ public:
     );
 
     void Destroy();
+
+
+    // Member getters.
 
     VkDebugUtilsMessageSeverityFlagBitsEXT VulkanMessageLevelToDisplay() const { return vulkanMessageLevelToDisplay; }
     int MaxFramesInFlight() const { return MAX_FRAMES_IN_FLIGHT; }
@@ -47,6 +52,11 @@ public:
     VkQueue PresentQueue()  const { return presentQueue; }
 
 
+    // Create functions.
+
+    VkCommandPool CreateCommandPool( const uint32_t familyIndex ) const;
+
+
 private:
     struct QueueFamilyIndices
     {
@@ -65,6 +75,7 @@ private:
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR> presentModes;
     };
+
 
 private:
 

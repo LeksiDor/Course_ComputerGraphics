@@ -61,7 +61,8 @@ private:
 
     void initVulkan()
     {
-        theVulkanContext().Init(
+        auto& context = theVulkanContext();
+        context.Init(
             TUTORIAL_NAME,
             window,
             { "VK_LAYER_KHRONOS_validation" },
@@ -72,7 +73,7 @@ private:
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
-        createCommandPool();
+        commandPool = context.CreateCommandPool( context.GraphicsFamily().value() );
         createCommandBuffers();
         createSyncObjects();
     }
@@ -396,17 +397,6 @@ private:
             if ( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
                 throw std::runtime_error( "failed to create framebuffer!" );
         }
-    }
-
-    void createCommandPool()
-    {
-        const auto device = theVulkanContext().LogicalDevice();
-        const auto graphicsFamily = theVulkanContext().GraphicsFamily();
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.queueFamilyIndex = graphicsFamily.value();
-        if ( vkCreateCommandPool( device, &poolInfo, nullptr, &commandPool ) != VK_SUCCESS )
-            throw std::runtime_error( "failed to create command pool!" );
     }
 
     void createCommandBuffers()
