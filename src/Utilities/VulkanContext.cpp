@@ -7,6 +7,10 @@
 #include <set>
 
 
+
+namespace svk {
+
+
 VulkanContext& theVulkanContext()
 {
     static VulkanContext context;
@@ -42,13 +46,13 @@ void VulkanContext::Init(
 
 void VulkanContext::Destroy()
 {
-    vkDestroyDevice(device, nullptr);
+    vkDestroyDevice( device, nullptr );
 
     if ( enableValidationLayers )
     {
         const VkAllocationCallbacks* pAllocator = nullptr;
-        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-        if (func != nullptr) {
+        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr( instance, "vkDestroyDebugUtilsMessengerEXT" );
+        if ( func != nullptr ) {
             func( instance, debugMessenger, pAllocator );
         }
     }
@@ -83,7 +87,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 VkCommandPool VulkanContext::CreateCommandPool( const uint32_t familyIndex ) const
 {
     VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkCommandPoolCreateInfo poolInfo{};
+    VkCommandPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = familyIndex;
     if ( vkCreateCommandPool( device, &poolInfo, nullptr, &commandPool ) != VK_SUCCESS )
@@ -94,10 +98,10 @@ VkCommandPool VulkanContext::CreateCommandPool( const uint32_t familyIndex ) con
 
 void VulkanContext::CreateInstance()
 {
-    if ( enableValidationLayers && !CheckValidationLayerSupport() ) 
-        throw std::runtime_error("validation layers requested, but not available!");
+    if ( enableValidationLayers && !CheckValidationLayerSupport() )
+        throw std::runtime_error( "validation layers requested, but not available!" );
 
-    VkApplicationInfo appInfo{};
+    VkApplicationInfo appInfo {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = appName.c_str();
     appInfo.applicationVersion = VK_MAKE_VERSION( 1, 0, 0 );
@@ -105,7 +109,7 @@ void VulkanContext::CreateInstance()
     appInfo.engineVersion = VK_MAKE_VERSION( 1, 0, 0 );
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
-    VkInstanceCreateInfo createInfo{};
+    VkInstanceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
@@ -127,7 +131,7 @@ void VulkanContext::CreateInstance()
     }
 
     if ( vkCreateInstance( &createInfo, nullptr, &instance ) != VK_SUCCESS )
-        throw std::runtime_error("failed to create instance!");
+        throw std::runtime_error( "failed to create instance!" );
 }
 
 
@@ -140,7 +144,7 @@ void VulkanContext::SetupDebugMessenger()
 
     auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr( instance, "vkCreateDebugUtilsMessengerEXT" );
     if ( func == nullptr || func( instance, &createInfo, nullptr, &debugMessenger ) != VK_SUCCESS )
-        throw std::runtime_error("failed to set up debug messenger!");
+        throw std::runtime_error( "failed to set up debug messenger!" );
 }
 
 
@@ -154,10 +158,10 @@ void VulkanContext::CreateSurface()
 void VulkanContext::PickPhysicalDevice()
 {
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+    vkEnumeratePhysicalDevices( instance, &deviceCount, nullptr );
 
     if ( deviceCount == 0 )
-        throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        throw std::runtime_error( "failed to find GPUs with Vulkan support!" );
 
     std::vector<VkPhysicalDevice> devices( deviceCount );
     vkEnumeratePhysicalDevices( instance, &deviceCount, devices.data() );
@@ -186,21 +190,21 @@ void VulkanContext::CreateLogicalDevice()
     float queuePriority = 1.0f;
     for ( uint32_t queueFamily : uniqueQueueFamilies )
     {
-        VkDeviceQueueCreateInfo queueCreateInfo{};
+        VkDeviceQueueCreateInfo queueCreateInfo {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
         queueCreateInfo.queueCount = 1;
         queueCreateInfo.pQueuePriorities = &queuePriority;
-        queueCreateInfos.push_back(queueCreateInfo);
+        queueCreateInfos.push_back( queueCreateInfo );
     }
 
-    VkPhysicalDeviceFeatures deviceFeatures{};
+    VkPhysicalDeviceFeatures deviceFeatures {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
 
-    VkDeviceCreateInfo createInfo{};
+    VkDeviceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>( queueCreateInfos.size() );
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
     createInfo.pEnabledFeatures = &deviceFeatures;
@@ -211,16 +215,17 @@ void VulkanContext::CreateLogicalDevice()
     if ( enableValidationLayers ) {
         createInfo.enabledLayerCount = static_cast<uint32_t>( validationLayers.size() );
         createInfo.ppEnabledLayerNames = validationLayers.data();
-    } else {
+    }
+    else {
         createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
+    if ( vkCreateDevice( physicalDevice, &createInfo, nullptr, &device ) != VK_SUCCESS ) {
+        throw std::runtime_error( "failed to create logical device!" );
     }
 
-    vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
-    vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+    vkGetDeviceQueue( device, indices.graphicsFamily.value(), 0, &graphicsQueue );
+    vkGetDeviceQueue( device, indices.presentFamily.value(), 0, &presentQueue );
 }
 
 
@@ -340,7 +345,7 @@ VulkanContext::SwapChainSupportDetails VulkanContext::QuerySwapChainSupport( VkP
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR( device, surface, &formatCount, nullptr );
 
-    if (formatCount != 0)
+    if ( formatCount != 0 )
     {
         details.formats.resize( formatCount );
         vkGetPhysicalDeviceSurfaceFormatsKHR( device, surface, &formatCount, details.formats.data() );
@@ -374,3 +379,6 @@ bool VulkanContext::CheckDeviceExtensionSupport( VkPhysicalDevice device, const 
 
     return requiredExtensions.empty();
 }
+
+
+} // namespace svk

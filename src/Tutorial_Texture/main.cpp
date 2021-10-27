@@ -28,6 +28,8 @@ const std::string TUTORIAL_NAME = "Texture Mapping";
 
 const std::string TEXTURE_PATH = std::string(ROOT_DIRECTORY) + "/media/texture.jpg";
 
+using namespace svk;
+
 
 struct Vertex {
     glm::vec2 pos;

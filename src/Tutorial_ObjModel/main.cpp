@@ -36,6 +36,8 @@ const std::string TUTORIAL_NAME = "Loading Models";
 const std::string MODEL_PATH = std::string(ROOT_DIRECTORY) + "/media/viking_room.obj";
 const std::string TEXTURE_PATH = std::string(ROOT_DIRECTORY) + "/media/viking_room.png";
 
+using namespace svk;
+
 
 
 struct Vertex {

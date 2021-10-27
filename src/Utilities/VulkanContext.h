@@ -1,5 +1,5 @@
-#ifndef VULKANCONTEXT_H
-#define VULKANCONTEXT_H
+#ifndef SVK_VULKANCONTEXT_H
+#define SVK_VULKANCONTEXT_H
 
 #include <vulkan/vulkan.h>
 
@@ -9,6 +9,9 @@
 
 
 struct GLFWwindow;
+
+
+namespace svk {
 
 
 class VulkanContext
@@ -132,4 +135,7 @@ private:
 
 VulkanContext& theVulkanContext();
 
-#endif // VULKANCONTEXT_H
+
+} // namespace svk
+
+#endif // SVK_VULKANCONTEXT_H

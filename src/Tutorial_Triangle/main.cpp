@@ -17,6 +17,8 @@ const uint32_t HEIGHT = 600;
 
 const std::string TUTORIAL_NAME = "Drawing a Triangle";
 
+using namespace svk;
+
 
 class HelloTriangleApplication {
 public:

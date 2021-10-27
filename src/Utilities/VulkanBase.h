@@ -1,5 +1,5 @@
-#ifndef VULKANBASE_H
-#define VULKANBASE_H
+#ifndef SVK_VULKANBASE_H
+#define SVK_VULKANBASE_H
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -9,6 +9,8 @@
 #include <vector>
 
 
+
+namespace svk {
 
 
 struct SwapChainSupportDetails
@@ -35,4 +37,6 @@ VkExtent2D ChooseSwapExtent( GLFWwindow* window, const VkSurfaceCapabilitiesKHR&
 SwapChainSupportDetails QuerySwapChainSupport( VkPhysicalDevice device, VkSurfaceKHR surface );
 
 
-#endif // VULKANBASE_H
+} // namespace svk
+
+#endif // SVK_VULKANBASE_H
