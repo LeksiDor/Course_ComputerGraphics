@@ -55,11 +55,6 @@ public:
     VkQueue PresentQueue()  const { return presentQueue; }
 
 
-    // Create functions.
-
-    VkCommandPool CreateCommandPool( const uint32_t familyIndex ) const;
-
-
     // Utility functions.
 
     uint32_t FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;

@@ -84,18 +84,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 }
 
 
-VkCommandPool VulkanContext::CreateCommandPool( const uint32_t familyIndex ) const
-{
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkCommandPoolCreateInfo poolInfo {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = familyIndex;
-    if ( vkCreateCommandPool( device, &poolInfo, nullptr, &commandPool ) != VK_SUCCESS )
-        throw std::runtime_error( "failed to create command pool!" );
-    return commandPool;
-}
-
-
 uint32_t VulkanContext::FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const
 {
     VkPhysicalDeviceMemoryProperties memProperties;
