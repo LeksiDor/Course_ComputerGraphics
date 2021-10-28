@@ -1,5 +1,6 @@
 #include "VulkanBase.h"
 #include "VulkanContext.h"
+#include "CommandPool.h"
 #include "Image.h"
 
 #define GLM_FORCE_RADIANS
@@ -109,7 +110,7 @@ private:
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
-    VkCommandPool commandPool;
+    CommandPool commandPool;
 
     Image texture;
 
@@ -163,7 +164,7 @@ private:
         createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffers();
-        commandPool = context.CreateCommandPool( context.GraphicsFamily().value() );
+        commandPool.Reset( context.GraphicsFamily().value() );
         createTextureImage();
         createVertexBuffer();
         createIndexBuffer();
@@ -191,7 +192,9 @@ private:
         for ( auto framebuffer : swapChainFramebuffers )
             vkDestroyFramebuffer(device, framebuffer, nullptr);
 
-        vkFreeCommandBuffers( device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data() );
+        for ( int i = 0; i < commandBuffers.size(); ++i )
+            commandPool.FreeCommandBuffer( commandBuffers[i] );
+        commandBuffers.clear();
 
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -235,7 +238,7 @@ private:
             vkDestroyFence(device, inFlightFences[i], nullptr);
         }
 
-        vkDestroyCommandPool(device, commandPool, nullptr);
+        commandPool.Clear();
 
         theVulkanContext().Destroy();
 
@@ -593,8 +596,10 @@ private:
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
-    void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    void transitionImageLayout( VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout )
+    {
+        VkCommandBuffer commandBuffer = commandPool.CreateCommandBuffer();
+        CommandPool::BeginCommandBuffer( commandBuffer, true );
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -637,11 +642,15 @@ private:
             1, &barrier
         );
 
-        endSingleTimeCommands(commandBuffer);
+        CommandPool::EndCommandBuffer( commandBuffer );
+        theVulkanContext().SubmitGraphicsQueue( commandBuffer );
+        commandPool.FreeCommandBuffer( commandBuffer );
     }
 
-    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    void copyBufferToImage( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height )
+    {
+        VkCommandBuffer commandBuffer = commandPool.CreateCommandBuffer();
+        CommandPool::BeginCommandBuffer( commandBuffer, true );
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -660,7 +669,9 @@ private:
 
         vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-        endSingleTimeCommands(commandBuffer);
+        CommandPool::EndCommandBuffer( commandBuffer );
+        theVulkanContext().SubmitGraphicsQueue( commandBuffer );
+        commandPool.FreeCommandBuffer( commandBuffer );
     }
 
     void createVertexBuffer()
@@ -811,78 +822,27 @@ private:
         vkBindBufferMemory(device, buffer, bufferMemory, 0);
     }
 
-    VkCommandBuffer beginSingleTimeCommands()
+    void copyBuffer( VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size )
     {
-        const auto device = theVulkanContext().LogicalDevice();
-
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = commandPool;
-        allocInfo.commandBufferCount = 1;
-
-        VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers( device, &allocInfo, &commandBuffer );
-
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-        return commandBuffer;
-    }
-
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer)
-    {
-        const auto device = theVulkanContext().LogicalDevice();
-        const auto graphicsQueue = theVulkanContext().GraphicsQueue();
-
-        vkEndCommandBuffer(commandBuffer);
-
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(graphicsQueue);
-
-        vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
-    }
-
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-
+        VkCommandBuffer commandBuffer = commandPool.CreateCommandBuffer();
+        CommandPool::BeginCommandBuffer( commandBuffer, true );
         VkBufferCopy copyRegion{};
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-        endSingleTimeCommands(commandBuffer);
+        CommandPool::EndCommandBuffer( commandBuffer );
+        theVulkanContext().SubmitGraphicsQueue( commandBuffer );
+        commandPool.FreeCommandBuffer( commandBuffer );
     }
 
     void createCommandBuffers()
     {
-        const auto device = theVulkanContext().LogicalDevice();
+        const int numCommandBuffers = swapChainFramebuffers.size();
+        commandBuffers.resize( numCommandBuffers );
 
-        commandBuffers.resize(swapChainFramebuffers.size());
-
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
-
-        if (vkAllocateCommandBuffers( device, &allocInfo, commandBuffers.data() ) != VK_SUCCESS)
-            throw std::runtime_error( "failed to allocate command buffers!" );
-
-        for (size_t i = 0; i < commandBuffers.size(); i++) {
-            VkCommandBufferBeginInfo beginInfo{};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-            if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error("failed to begin recording command buffer!");
-            }
+        for ( size_t i = 0; i < commandBuffers.size(); i++ )
+        {
+            VkCommandBuffer commandBuffer = commandBuffers[i] = commandPool.CreateCommandBuffer();
+            CommandPool::BeginCommandBuffer( commandBuffer, false );
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -895,25 +855,23 @@ private:
             renderPassInfo.clearValueCount = 1;
             renderPassInfo.pClearValues = &clearColor;
 
-            vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
 
-                vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+            vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline );
 
-                VkBuffer vertexBuffers[] = {vertexBuffer};
-                VkDeviceSize offsets[] = {0};
-                vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+            VkBuffer vertexBuffers[] = {vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
 
-                vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer( commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16 );
 
-                vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+            vkCmdBindDescriptorSets( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr );
 
-                vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+            vkCmdDrawIndexed( commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0 );
 
-            vkCmdEndRenderPass(commandBuffers[i]);
+            vkCmdEndRenderPass( commandBuffer );
 
-            if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to record command buffer!");
-            }
+            CommandPool::EndCommandBuffer( commandBuffer );
         }
     }
 

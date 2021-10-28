@@ -6,21 +6,6 @@
 
 namespace svk {
 
-class CommandBuffer;
-class CommandPool;
-
-
-class CommandBuffer
-{
-private:
-    friend class CommandPool;
-    CommandBuffer( VkCommandPool commandPool );
-
-public:
-    ~CommandBuffer();
-
-};
-
 
 class CommandPool
 {
@@ -40,6 +25,15 @@ public:
 
 
     const VkCommandPool& Handle() const { return commandPool; }
+
+
+    VkCommandBuffer CreateCommandBuffer() const;
+
+    void FreeCommandBuffer( VkCommandBuffer& commandBuffer ) const;
+
+
+    static void BeginCommandBuffer( const VkCommandBuffer commandBuffer, const bool isSingleUse );
+    static void EndCommandBuffer( const VkCommandBuffer commandBuffer );
 
 
 private:

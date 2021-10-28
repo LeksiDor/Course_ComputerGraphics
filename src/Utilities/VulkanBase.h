@@ -37,6 +37,9 @@ VkExtent2D ChooseSwapExtent( GLFWwindow* window, const VkSurfaceCapabilitiesKHR&
 SwapChainSupportDetails QuerySwapChainSupport( VkPhysicalDevice device, VkSurfaceKHR surface );
 
 
+
+
+
 } // namespace svk
 
 #endif // SVK_VULKANBASE_H

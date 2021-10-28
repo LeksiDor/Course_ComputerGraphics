@@ -62,7 +62,17 @@ public:
 
     // Utility functions.
 
-    uint32_t FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties );
+    uint32_t FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const;
+
+    void SubmitGraphicsQueue( const VkCommandBuffer& commandBuffer ) const;
+
+    void SubmitGraphicsQueue(
+        const VkCommandBuffer& commandBuffer,
+        const std::vector<VkSemaphore>& waitSemaphores,
+        const std::vector<VkPipelineStageFlags>& waitStages,
+        const std::vector<VkSemaphore>& signalSemaphores,
+        const VkFence fence = VK_NULL_HANDLE
+    ) const;
 
 
 private:

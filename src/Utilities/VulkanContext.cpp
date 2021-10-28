@@ -96,7 +96,7 @@ VkCommandPool VulkanContext::CreateCommandPool( const uint32_t familyIndex ) con
 }
 
 
-uint32_t VulkanContext::FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties )
+uint32_t VulkanContext::FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFlags properties ) const
 {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -108,6 +108,51 @@ uint32_t VulkanContext::FindMemoryType( uint32_t typeFilter, VkMemoryPropertyFla
     }
 
     throw std::runtime_error( "failed to find suitable memory type!" );
+}
+
+
+void VulkanContext::SubmitGraphicsQueue( const VkCommandBuffer& commandBuffer ) const
+{
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    if ( vkQueueSubmit( graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE ) != VK_SUCCESS )
+        throw std::runtime_error( "Failed to submit graphics queue." );
+    vkQueueWaitIdle( graphicsQueue );
+}
+
+
+void VulkanContext::SubmitGraphicsQueue( const VkCommandBuffer& commandBuffer, const std::vector<VkSemaphore>& waitSemaphores, const std::vector<VkPipelineStageFlags>& waitStages, const std::vector<VkSemaphore>& signalSemaphores, const VkFence fence ) const
+{
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    if ( waitSemaphores.size() != waitStages.size() )
+        throw std::runtime_error( "Number of wait semaphores and wait stages must be the same." );
+
+    if ( waitSemaphores.size() != 0 )
+    {
+        submitInfo.waitSemaphoreCount = waitSemaphores.size();
+        submitInfo.pWaitSemaphores = waitSemaphores.data();
+        submitInfo.pWaitDstStageMask = waitStages.data();
+    }
+
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    if ( signalSemaphores.size() != 0 )
+    {
+        submitInfo.signalSemaphoreCount = signalSemaphores.size();
+        submitInfo.pSignalSemaphores = signalSemaphores.data();
+    }
+
+    vkResetFences( device, 1, &fence );
+
+    if ( vkQueueSubmit( graphicsQueue, 1, &submitInfo, fence ) != VK_SUCCESS )
+        throw std::runtime_error( "Failed to submit graphics queue." );
+    vkQueueWaitIdle( graphicsQueue );
 }
 
 

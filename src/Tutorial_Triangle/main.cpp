@@ -1,5 +1,6 @@
 #include "VulkanBase.h"
 #include "VulkanContext.h"
+#include "CommandPool.h"
 
 #include <iostream>
 #include <fstream>
@@ -43,7 +44,7 @@ private:
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
-    VkCommandPool commandPool;
+    CommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -75,7 +76,7 @@ private:
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
-        commandPool = context.CreateCommandPool( context.GraphicsFamily().value() );
+        commandPool.Reset( context.GraphicsFamily().value() );
         createCommandBuffers();
         createSyncObjects();
     }
@@ -104,7 +105,7 @@ private:
             vkDestroyFence( device, inFlightFences[i], nullptr );
         }
 
-        vkDestroyCommandPool( device, commandPool, nullptr );
+        commandPool.Clear();
 
         for ( auto framebuffer : swapChainFramebuffers )
             vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -403,27 +404,13 @@ private:
 
     void createCommandBuffers()
     {
-        const auto device = theVulkanContext().LogicalDevice();
+        const int numCommandBuffers = swapChainFramebuffers.size();
+        commandBuffers.resize( numCommandBuffers );
 
-        commandBuffers.resize(swapChainFramebuffers.size());
-
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
-
-        if ( vkAllocateCommandBuffers( device, &allocInfo, commandBuffers.data() ) != VK_SUCCESS )
-            throw std::runtime_error("failed to allocate command buffers!");
-
-        for ( size_t i = 0; i < commandBuffers.size(); i++ )
+        for ( size_t i = 0; i < numCommandBuffers; i++ )
         {
-            VkCommandBufferBeginInfo beginInfo{};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-            if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error("failed to begin recording command buffer!");
-            }
+            VkCommandBuffer commandBuffer = commandBuffers[i] = commandPool.CreateCommandBuffer();
+            CommandPool::BeginCommandBuffer( commandBuffer, false );
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -436,16 +423,15 @@ private:
             renderPassInfo.clearValueCount = 1;
             renderPassInfo.pClearValues = &clearColor;
 
-            vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
 
-            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+            vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline );
 
-            vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+            vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
 
-            vkCmdEndRenderPass(commandBuffers[i]);
+            vkCmdEndRenderPass( commandBuffer );
 
-            if ( vkEndCommandBuffer( commandBuffers[i] ) != VK_SUCCESS )
-                throw std::runtime_error("failed to record command buffer!");
+            CommandPool::EndCommandBuffer( commandBuffer );
         }
     }
 
@@ -481,7 +467,6 @@ private:
     void drawFrame()
     {
         const auto device = theVulkanContext().LogicalDevice();
-        const auto graphicsQueue = theVulkanContext().GraphicsQueue();
         const auto presentQueue = theVulkanContext().PresentQueue();
 
         vkWaitForFences( device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX );
@@ -494,33 +479,17 @@ private:
         }
         imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        const std::vector<VkSemaphore> waitSemaphores = { imageAvailableSemaphores[currentFrame] };
+        const std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        const std::vector<VkSemaphore> signalSemaphores = { renderFinishedSemaphores[currentFrame] };
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
-
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
-
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
-
-        vkResetFences(device, 1, &inFlightFences[currentFrame]);
-
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to submit draw command buffer!");
-        }
+        theVulkanContext().SubmitGraphicsQueue( commandBuffers[imageIndex], waitSemaphores, waitStages, signalSemaphores, inFlightFences[currentFrame] );
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
+        presentInfo.waitSemaphoreCount = signalSemaphores.size();
+        presentInfo.pWaitSemaphores = signalSemaphores.data();
 
         VkSwapchainKHR swapChains[] = {swapChain};
         presentInfo.swapchainCount = 1;
