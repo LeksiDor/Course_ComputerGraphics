@@ -1,6 +1,7 @@
 #include "VulkanBase.h"
 #include "VulkanContext.h"
 #include "CommandPool.h"
+#include "Image.h"
 
 #include <iostream>
 #include <fstream>
@@ -21,6 +22,25 @@ const std::string TUTORIAL_NAME = "Drawing a Triangle";
 using namespace svk;
 
 
+struct SwapChainEntry
+{
+    VkImage image = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkFence imageInFlight = VK_NULL_HANDLE;
+    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+};
+
+
+struct FenceEntry
+{
+    VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
+    VkFence inFlightFence = VK_NULL_HANDLE;
+};
+
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -34,23 +54,18 @@ private:
     GLFWwindow* window;
 
     VkSwapchainKHR swapChain;
-    std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
-    std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
+
+    std::vector<SwapChainEntry> swapChainEntries;
+    std::vector<FenceEntry> fenceEntries;
 
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
     CommandPool commandPool;
-    std::vector<VkCommandBuffer> commandBuffers;
 
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
-    std::vector<VkFence> imagesInFlight;
     size_t currentFrame = 0;
 
     void initWindow() {
@@ -98,24 +113,27 @@ private:
         const auto device = theVulkanContext().LogicalDevice();
         const int maxFramesInFlight = theVulkanContext().MaxFramesInFlight();
 
-        for (size_t i = 0; i < maxFramesInFlight; i++)
+        for ( auto& entry : swapChainEntries )
         {
-            vkDestroySemaphore( device, renderFinishedSemaphores[i], nullptr );
-            vkDestroySemaphore( device, imageAvailableSemaphores[i], nullptr );
-            vkDestroyFence( device, inFlightFences[i], nullptr );
+            vkDestroyFramebuffer( device, entry.framebuffer, nullptr );
+            commandPool.FreeCommandBuffer( entry.commandBuffer );
+            vkDestroyImageView( device, entry.imageView, nullptr );
         }
+        swapChainEntries.clear();
+
+        for ( auto& entry : fenceEntries )
+        {
+            vkDestroySemaphore( device, entry.renderFinishedSemaphore, nullptr );
+            vkDestroySemaphore(device, entry.imageAvailableSemaphore, nullptr );
+            vkDestroyFence( device, entry.inFlightFence, nullptr );
+        }
+        fenceEntries.clear();
 
         commandPool.Clear();
-
-        for ( auto framebuffer : swapChainFramebuffers )
-            vkDestroyFramebuffer(device, framebuffer, nullptr);
 
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
-
-        for ( auto imageView : swapChainImageViews )
-            vkDestroyImageView(device, imageView, nullptr);
 
         vkDestroySwapchainKHR(device, swapChain, nullptr);
 
@@ -181,8 +199,13 @@ private:
         }
 
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-        swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+
+        swapChainEntries.resize( imageCount );
+
+        std::vector<VkImage> swapChainImages( imageCount );
+        vkGetSwapchainImagesKHR( device, swapChain, &imageCount, swapChainImages.data() );
+        for ( int i = 0; i < imageCount; ++i )
+            swapChainEntries[i].image = swapChainImages[i];
 
         swapChainImageFormat = surfaceFormat.format;
         swapChainExtent = extent;
@@ -190,30 +213,8 @@ private:
 
     void createImageViews()
     {
-        const auto device = theVulkanContext().LogicalDevice();
-
-        swapChainImageViews.resize( swapChainImages.size() );
-
-        for (size_t i = 0; i < swapChainImages.size(); i++)
-        {
-            VkImageViewCreateInfo createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            createInfo.image = swapChainImages[i];
-            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            createInfo.format = swapChainImageFormat;
-            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            createInfo.subresourceRange.baseMipLevel = 0;
-            createInfo.subresourceRange.levelCount = 1;
-            createInfo.subresourceRange.baseArrayLayer = 0;
-            createInfo.subresourceRange.layerCount = 1;
-
-            if ( vkCreateImageView( device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS )
-                throw std::runtime_error("failed to create image views!");
-        }
+        for ( auto& entry : swapChainEntries )
+            entry.imageView = Image::CreateImageView( entry.image, swapChainImageFormat );
     }
 
     void createRenderPass()
@@ -380,12 +381,10 @@ private:
     {
         const auto device = theVulkanContext().LogicalDevice();
 
-        swapChainFramebuffers.resize( swapChainImageViews.size() );
-
-        for ( size_t i = 0; i < swapChainImageViews.size(); i++ )
+        for ( auto& entry : swapChainEntries )
         {
             VkImageView attachments[] = {
-                swapChainImageViews[i]
+                entry.imageView
             };
 
             VkFramebufferCreateInfo framebufferInfo{};
@@ -397,25 +396,22 @@ private:
             framebufferInfo.height = swapChainExtent.height;
             framebufferInfo.layers = 1;
 
-            if ( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
-                throw std::runtime_error( "failed to create framebuffer!" );
+            if ( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &entry.framebuffer ) != VK_SUCCESS )
+                throw std::runtime_error("failed to create framebuffer!");
         }
     }
 
     void createCommandBuffers()
     {
-        const int numCommandBuffers = swapChainFramebuffers.size();
-        commandBuffers.resize( numCommandBuffers );
-
-        for ( size_t i = 0; i < numCommandBuffers; i++ )
+        for ( auto& entry : swapChainEntries )
         {
-            VkCommandBuffer commandBuffer = commandBuffers[i] = commandPool.CreateCommandBuffer();
-            CommandPool::BeginCommandBuffer( commandBuffer, false );
+            entry.commandBuffer = commandPool.CreateCommandBuffer();
+            CommandPool::BeginCommandBuffer( entry.commandBuffer, false );
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             renderPassInfo.renderPass = renderPass;
-            renderPassInfo.framebuffer = swapChainFramebuffers[i];
+            renderPassInfo.framebuffer = entry.framebuffer;
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = swapChainExtent;
 
@@ -423,15 +419,15 @@ private:
             renderPassInfo.clearValueCount = 1;
             renderPassInfo.pClearValues = &clearColor;
 
-            vkCmdBeginRenderPass( commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
+            vkCmdBeginRenderPass( entry.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
 
-            vkCmdBindPipeline( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline );
+            vkCmdBindPipeline( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline );
 
-            vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
+            vkCmdDraw( entry.commandBuffer, 3, 1, 0, 0 );
 
-            vkCmdEndRenderPass( commandBuffer );
+            vkCmdEndRenderPass( entry.commandBuffer );
 
-            CommandPool::EndCommandBuffer( commandBuffer );
+            CommandPool::EndCommandBuffer( entry.commandBuffer );
         }
     }
 
@@ -441,10 +437,7 @@ private:
         const auto device = context.LogicalDevice();
         const int maxFramesInFlight = context.MaxFramesInFlight();
 
-        imageAvailableSemaphores.resize( maxFramesInFlight );
-        renderFinishedSemaphores.resize( maxFramesInFlight );
-        inFlightFences.resize( maxFramesInFlight );
-        imagesInFlight.resize( swapChainImages.size(), VK_NULL_HANDLE );
+        fenceEntries.resize( maxFramesInFlight );
 
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -453,11 +446,11 @@ private:
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for ( size_t i = 0; i < maxFramesInFlight; i++ )
+        for ( auto& entry : fenceEntries )
         {
-            if (   vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS
-                || vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS
-                || vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS )
+            if (   vkCreateSemaphore( device, &semaphoreInfo, nullptr, &entry.imageAvailableSemaphore ) != VK_SUCCESS
+                || vkCreateSemaphore( device, &semaphoreInfo, nullptr, &entry.renderFinishedSemaphore ) != VK_SUCCESS
+                || vkCreateFence( device, &fenceInfo, nullptr, &entry.inFlightFence ) != VK_SUCCESS )
             {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
@@ -468,22 +461,26 @@ private:
     {
         const auto device = theVulkanContext().LogicalDevice();
         const auto presentQueue = theVulkanContext().PresentQueue();
+        const int maxFramesInFlight = theVulkanContext().MaxFramesInFlight();
 
-        vkWaitForFences( device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX );
+        auto& fenceEntry = fenceEntries[currentFrame];
+
+        vkWaitForFences( device, 1, &fenceEntry.inFlightFence, VK_TRUE, UINT64_MAX );
 
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR( device, swapChain, UINT64_MAX, fenceEntry.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex );
 
-        if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-            vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-        }
-        imagesInFlight[imageIndex] = inFlightFences[currentFrame];
+        auto& swapChainEntry = swapChainEntries[imageIndex];
 
-        const std::vector<VkSemaphore> waitSemaphores = { imageAvailableSemaphores[currentFrame] };
+        if ( swapChainEntry.imageInFlight != VK_NULL_HANDLE )
+            vkWaitForFences( device, 1, &swapChainEntry.imageInFlight, VK_TRUE, UINT64_MAX );
+        swapChainEntry.imageInFlight = fenceEntry.inFlightFence;
+
+        const std::vector<VkSemaphore> waitSemaphores = { fenceEntry.imageAvailableSemaphore };
         const std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-        const std::vector<VkSemaphore> signalSemaphores = { renderFinishedSemaphores[currentFrame] };
+        const std::vector<VkSemaphore> signalSemaphores = { fenceEntry.renderFinishedSemaphore };
 
-        theVulkanContext().SubmitGraphicsQueue( commandBuffers[imageIndex], waitSemaphores, waitStages, signalSemaphores, inFlightFences[currentFrame] );
+        theVulkanContext().SubmitGraphicsQueue( swapChainEntry.commandBuffer, waitSemaphores, waitStages, signalSemaphores, fenceEntry.inFlightFence );
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
