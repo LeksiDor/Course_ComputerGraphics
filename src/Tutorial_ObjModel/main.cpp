@@ -2,6 +2,7 @@
 #include "VulkanContext.h"
 #include "CommandPool.h"
 #include "Image.h"
+#include "SwapChain.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -164,8 +165,7 @@ private:
     GLFWwindow* window;
 
     VkSwapchainKHR swapChain;
-    VkFormat swapChainImageFormat;
-    VkExtent2D swapChainExtent;
+    SwapChain::Info swapChainInfo;
 
     std::vector<SwapChainEntry> swapChainEntries;
     std::vector<FenceEntry> fenceEntries;
@@ -217,22 +217,28 @@ private:
             { "VK_LAYER_KHRONOS_validation" },
             { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
         );
-        createSwapChain();
-        createImageViews();
+
+        swapChainInfo.Update();
+
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
         commandPool.Reset( context.GraphicsFamily().value() );
         createDepthResources();
-        createFramebuffers();
         createTextureImage();
         loadModel();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
+
         createDescriptorPool();
+
+        createSwapChain();
+        createImageViews();
+        createFramebuffers();
         createDescriptorSets();
         createCommandBuffers();
+
         createSyncObjects();
     }
 
@@ -347,25 +353,16 @@ private:
         const auto graphicsFamily = theVulkanContext().GraphicsFamily();
         const auto presentFamily = theVulkanContext().PresentFamily();
 
-        SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport( physicalDevice, surface );
-
-        VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat( swapChainSupport.formats );
-        VkPresentModeKHR presentMode = ChooseSwapPresentMode( swapChainSupport.presentModes );
-        VkExtent2D extent = ChooseSwapExtent( window, swapChainSupport.capabilities );
-
-        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-            imageCount = swapChainSupport.capabilities.maxImageCount;
-        }
+        swapChainInfo.Update();
 
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         createInfo.surface = surface;
 
-        createInfo.minImageCount = imageCount;
-        createInfo.imageFormat = surfaceFormat.format;
-        createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
+        createInfo.minImageCount = swapChainInfo.numEntries;
+        createInfo.imageFormat = swapChainInfo.imageFormat;
+        createInfo.imageColorSpace = swapChainInfo.surfaceFormat.colorSpace;
+        createInfo.imageExtent = swapChainInfo.extent;
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -379,30 +376,27 @@ private:
             createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         }
 
-        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+        createInfo.preTransform = swapChainInfo.capabilities.currentTransform;
         createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = presentMode;
+        createInfo.presentMode = swapChainInfo.presentMode;
         createInfo.clipped = VK_TRUE;
 
         if (vkCreateSwapchainKHR( device, &createInfo, nullptr, &swapChain ) != VK_SUCCESS )
             throw std::runtime_error("failed to create swap chain!");
 
-        vkGetSwapchainImagesKHR( device, swapChain, &imageCount, nullptr );
+        vkGetSwapchainImagesKHR( device, swapChain, &swapChainInfo.numEntries, nullptr );
 
-        swapChainEntries.resize( imageCount );
+        swapChainEntries.resize( swapChainInfo.numEntries );
 
-        std::vector<VkImage> swapChainImages( imageCount );
-        vkGetSwapchainImagesKHR( device, swapChain, &imageCount, swapChainImages.data() );
-        for ( int i = 0; i < imageCount; ++i )
+        std::vector<VkImage> swapChainImages( swapChainInfo.numEntries );
+        vkGetSwapchainImagesKHR( device, swapChain, &swapChainInfo.numEntries, swapChainImages.data() );
+        for ( int i = 0; i < swapChainInfo.numEntries; ++i )
             swapChainEntries[i].image = swapChainImages[i];
-
-        swapChainImageFormat = surfaceFormat.format;
-        swapChainExtent = extent;
     }
 
     void createImageViews() {
         for ( auto& entry : swapChainEntries )
-            entry.imageView = Image::CreateImageView( entry.image, swapChainImageFormat );
+            entry.imageView = Image::CreateImageView( entry.image, swapChainInfo.imageFormat );
     }
 
     void createRenderPass()
@@ -410,7 +404,7 @@ private:
         const auto device = theVulkanContext().LogicalDevice();
 
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = swapChainImageFormat;
+        colorAttachment.format = swapChainInfo.imageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -536,14 +530,14 @@ private:
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float) swapChainExtent.width;
-        viewport.height = (float) swapChainExtent.height;
+        viewport.width = (float) swapChainInfo.extent.width;
+        viewport.height = (float) swapChainInfo.extent.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = swapChainExtent;
+        scissor.extent = swapChainInfo.extent;
 
         VkPipelineViewportStateCreateInfo viewportState{};
         viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -639,8 +633,8 @@ private:
             framebufferInfo.renderPass = renderPass;
             framebufferInfo.attachmentCount = attachments.size();
             framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.width = swapChainInfo.extent.width;
+            framebufferInfo.height = swapChainInfo.extent.height;
             framebufferInfo.layers = 1;
 
             if ( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &entry.framebuffer ) != VK_SUCCESS )
@@ -650,7 +644,7 @@ private:
 
     void createDepthResources() {
         const VkFormat depthFormat = findDepthFormat();
-        depthImage.Reset( swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT );
+        depthImage.Reset( swapChainInfo.extent.width, swapChainInfo.extent.height, depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT );
     }
 
     VkFormat findSupportedFormat( const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features )
@@ -882,8 +876,7 @@ private:
     void createUniformBuffers()
     {
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-        const int imageCount = swapChainEntries.size();
-        renderEntries.resize( imageCount );
+        renderEntries.resize( swapChainInfo.numEntries );
         for ( auto& entry : renderEntries )
         {
             createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
@@ -899,19 +892,18 @@ private:
     void createDescriptorPool()
     {
         const auto device = theVulkanContext().LogicalDevice();
-        const uint32_t imageCount = swapChainEntries.size();
 
         std::array<VkDescriptorPoolSize, 2> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = imageCount;
+        poolSizes[0].descriptorCount = swapChainInfo.numEntries;
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = imageCount;
+        poolSizes[1].descriptorCount = swapChainInfo.numEntries;
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = imageCount;
+        poolInfo.maxSets = swapChainInfo.numEntries;
 
         if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
@@ -921,22 +913,21 @@ private:
     void createDescriptorSets()
     {
         const auto device = theVulkanContext().LogicalDevice();
-        const uint32_t imageCount = swapChainEntries.size();
 
-        std::vector<VkDescriptorSetLayout> layouts( imageCount, descriptorSetLayout );
+        std::vector<VkDescriptorSetLayout> layouts( swapChainInfo.numEntries, descriptorSetLayout );
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = descriptorPool;
-        allocInfo.descriptorSetCount = imageCount;
+        allocInfo.descriptorSetCount = swapChainInfo.numEntries;
         allocInfo.pSetLayouts = layouts.data();
 
-        std::vector<VkDescriptorSet> descriptorSets( imageCount );
+        std::vector<VkDescriptorSet> descriptorSets( swapChainInfo.numEntries );
         if ( vkAllocateDescriptorSets( device, &allocInfo, descriptorSets.data() ) != VK_SUCCESS )
             throw std::runtime_error( "failed to allocate descriptor sets!" );
-        for ( int i = 0; i < imageCount; ++i )
+        for ( int i = 0; i < swapChainInfo.numEntries; ++i )
             swapChainEntries[i].descriptorSet = descriptorSets[i];
 
-        for ( int i = 0; i < imageCount; ++i )
+        for ( int i = 0; i < swapChainInfo.numEntries; ++i )
         {
             const auto& renderEntry = renderEntries[i];
             const auto& swapChainEntry = swapChainEntries[i];
@@ -999,7 +990,7 @@ private:
             renderPassInfo.renderPass = renderPass;
             renderPassInfo.framebuffer = entry.framebuffer;
             renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = swapChainExtent;
+            renderPassInfo.renderArea.extent = swapChainInfo.extent;
 
             std::array<VkClearValue, 2> clearValues{};
             clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -1065,7 +1056,7 @@ private:
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainInfo.extent.width / (float) swapChainInfo.extent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
         void* data;
