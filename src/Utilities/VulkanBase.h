@@ -13,6 +13,9 @@
 namespace svk {
 
 
+class CommandPool;
+
+
 struct SwapChainSupportDetails
 {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -39,6 +42,7 @@ SwapChainSupportDetails QuerySwapChainSupport( VkPhysicalDevice device, VkSurfac
 
 void createBuffer( VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory );
 
+void copyBuffer( const CommandPool& commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size );
 
 
 } // namespace svk

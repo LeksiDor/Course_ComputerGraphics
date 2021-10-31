@@ -865,7 +865,7 @@ private:
 
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
-        copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+        copyBuffer( commandPool, stagingBuffer, vertexBuffer, bufferSize );
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -888,7 +888,7 @@ private:
 
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
 
-        copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+        copyBuffer( commandPool, stagingBuffer, indexBuffer, bufferSize );
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -955,19 +955,6 @@ private:
             const auto descriptorWrites = renderEntry.getDescriptorWrites( swapChainEntry.descriptorSet );
             vkUpdateDescriptorSets( device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr );
         }
-    }
-
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = commandPool.CreateCommandBuffer();
-        CommandPool::BeginCommandBuffer( commandBuffer, true );
-
-        VkBufferCopy copyRegion{};
-        copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-        CommandPool::EndCommandBuffer( commandBuffer );
-        theVulkanContext().SubmitGraphicsQueue( commandBuffer );
-        commandPool.FreeCommandBuffer( commandBuffer );
     }
 
     void createCommandBuffers()

@@ -1,5 +1,6 @@
 #include "VulkanBase.h"
 #include "VulkanContext.h"
+#include "CommandPool.h"
 
 #include <algorithm>
 #include <fstream>
@@ -144,5 +145,18 @@ void createBuffer( VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryProperty
     vkBindBufferMemory(device, buffer, bufferMemory, 0);
 }
 
+void copyBuffer( const CommandPool& commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size )
+{
+    VkCommandBuffer commandBuffer = commandPool.CreateCommandBuffer();
+    CommandPool::BeginCommandBuffer( commandBuffer, true );
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+    CommandPool::EndCommandBuffer( commandBuffer );
+    theVulkanContext().SubmitGraphicsQueue( commandBuffer );
+    commandPool.FreeCommandBuffer( commandBuffer );
+}
 
 } // namespace svk
