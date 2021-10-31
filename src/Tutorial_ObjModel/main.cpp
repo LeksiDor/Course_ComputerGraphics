@@ -116,15 +116,17 @@ struct FenceEntry
 
 struct RenderEntry
 {
-    // Shared items.
-    VkDescriptorImageInfo colorImageInfo;
+    VkBuffer uniformBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
+    VkDescriptorBufferInfo bufferInfo = {};
+};
 
-    // Per-frame items.
-    VkBuffer uniformBuffer;
-    VkDeviceMemory uniformBufferMemory;
-    VkDescriptorBufferInfo bufferInfo{};
 
-    std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet ) const
+struct RenderEntryManager
+{
+    VkDescriptorImageInfo colorImageInfo = {};
+
+    std::vector<VkWriteDescriptorSet> getDescriptorWrites( const RenderEntry& entry, const VkDescriptorSet& descriptorSet ) const
     {
         std::vector<VkWriteDescriptorSet> descriptorWrites(2);
 
@@ -134,7 +136,7 @@ struct RenderEntry
         descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
+        descriptorWrites[0].pBufferInfo = &entry.bufferInfo;
 
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[1].dstSet = descriptorSet;
@@ -147,7 +149,30 @@ struct RenderEntry
         return descriptorWrites;
     }
 
-    void Update( const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry )
+    RenderEntry Create( const SwapChain::Info& swapChainInfo )
+    {
+        const VkDeviceSize bufferSize = sizeof( UniformBufferObject );
+        RenderEntry entry;
+        createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = entry.uniformBuffer;
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
+        entry.bufferInfo = bufferInfo;
+        return entry;
+    }
+
+    void Destroy( RenderEntry& entry )
+    {
+        const auto device = theVulkanContext().LogicalDevice();
+        if ( entry.uniformBuffer != VK_NULL_HANDLE )
+            vkDestroyBuffer( device, entry.uniformBuffer, nullptr );
+        if ( entry.uniformBufferMemory != VK_NULL_HANDLE )
+            vkFreeMemory( device, entry.uniformBufferMemory, nullptr );
+        entry = RenderEntry {};
+    }
+
+    void Update( RenderEntry& entry, const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry )
     {
         const auto device = theVulkanContext().LogicalDevice();
 
@@ -163,9 +188,9 @@ struct RenderEntry
         ubo.proj[1][1] *= -1;
 
         void* data;
-        vkMapMemory( device, uniformBufferMemory, 0, sizeof(ubo), 0, &data );
+        vkMapMemory( device, entry.uniformBufferMemory, 0, sizeof(ubo), 0, &data );
         memcpy( data, &ubo, sizeof(ubo) );
-        vkUnmapMemory( device, uniformBufferMemory );
+        vkUnmapMemory( device, entry.uniformBufferMemory );
     }
 };
 
@@ -188,6 +213,7 @@ private:
     std::vector<SwapChainEntry> swapChainEntries;
     std::vector<FenceEntry> fenceEntries;
     std::vector<RenderEntry> renderEntries;
+    RenderEntryManager renderEntryManager;
 
     VkRenderPass renderPass;
     VkDescriptorSetLayout descriptorSetLayout;
@@ -244,10 +270,12 @@ private:
         commandPool.Reset( context.GraphicsFamily().value() );
         createDepthResources();
         colorImage = Image::CreateFromFile( commandPool, TEXTURE_PATH );
+        renderEntryManager.colorImageInfo = colorImage->Info();
         loadModel();
         createVertexBuffer();
         createIndexBuffer();
-        createUniformBuffers();
+
+        CreateRenderEntries();
 
         createDescriptorPool();
 
@@ -292,10 +320,7 @@ private:
         vkDestroySwapchainKHR(device, swapChain, nullptr);
 
         for ( auto& entry : renderEntries )
-        {
-            vkDestroyBuffer( device, entry.uniformBuffer, nullptr );
-            vkFreeMemory(device, entry.uniformBufferMemory, nullptr);
-        }
+            renderEntryManager.Destroy( entry );
         renderEntries.clear();
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -357,10 +382,17 @@ private:
         createGraphicsPipeline();
         createDepthResources();
         createFramebuffers();
-        createUniformBuffers();
+        CreateRenderEntries();
         createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
+    }
+
+    void CreateRenderEntries()
+    {
+        renderEntries.resize( swapChainInfo.numEntries );
+        for ( int i = 0; i < swapChainInfo.numEntries; ++i )
+            renderEntries[i] = renderEntryManager.Create( swapChainInfo );
     }
 
     void createSwapChain()
@@ -780,22 +812,6 @@ private:
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
-    void createUniformBuffers()
-    {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-        renderEntries.resize( swapChainInfo.numEntries );
-        for ( auto& entry : renderEntries )
-        {
-            createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = entry.uniformBuffer;
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
-            entry.bufferInfo = bufferInfo;
-            entry.colorImageInfo = colorImage->Info();
-        }
-    }
-
     void createDescriptorPool()
     {
         const auto device = theVulkanContext().LogicalDevice();
@@ -838,7 +854,7 @@ private:
         {
             const auto& renderEntry = renderEntries[i];
             const auto& swapChainEntry = swapChainEntries[i];
-            const auto descriptorWrites = renderEntry.getDescriptorWrites( swapChainEntry.descriptorSet );
+            const auto descriptorWrites = renderEntryManager.getDescriptorWrites( renderEntry, swapChainEntry.descriptorSet );
             vkUpdateDescriptorSets( device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr );
         }
     }
@@ -932,7 +948,7 @@ private:
         auto& renderEntry = renderEntries[imageIndex];
         auto& swapChainEntry = swapChainEntries[imageIndex];
 
-        renderEntry.Update( swapChainInfo, swapChainEntry );
+        renderEntryManager.Update( renderEntry, swapChainInfo, swapChainEntry );
 
         if ( swapChainEntry.imageInFlight != VK_NULL_HANDLE )
             vkWaitForFences( device, 1, &swapChainEntry.imageInFlight, VK_TRUE, UINT64_MAX );
