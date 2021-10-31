@@ -54,6 +54,7 @@ public:
 class RenderEntryManager
 {
 public:
+    virtual std::vector<VkDescriptorType> getDescriptorTypes() const = 0;
     virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const = 0;
     virtual void InitRenderEntries( const SwapChain::Info& swapChainInfo ) = 0;
     virtual void ClearRenderEntries() = 0;

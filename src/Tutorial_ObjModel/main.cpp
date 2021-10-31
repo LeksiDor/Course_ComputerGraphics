@@ -108,6 +108,11 @@ struct AppRenderEntryManager : public RenderEntryManager
     VkDescriptorImageInfo colorImageInfo = {};
     std::vector<RenderEntry> entries;
 
+    virtual std::vector<VkDescriptorType> getDescriptorTypes() const override
+    {
+        return { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER };
+    }
+
     virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const override
     {
         std::vector<VkWriteDescriptorSet> descriptorWrites(2);
@@ -252,10 +257,7 @@ private:
 
         swapChainInfo.Update();
 
-        createRenderPass();
-        createDescriptorSetLayout();
-        createGraphicsPipeline();
-        createDepthResources();
+        // App-specific data.
         colorImage = Image::CreateFromFile( commandPool, TEXTURE_PATH );
         renderEntryManager.reset( new AppRenderEntryManager() );
         auto& renderManager = *dynamic_cast<AppRenderEntryManager*>( renderEntryManager.get() );
@@ -266,14 +268,17 @@ private:
 
         renderEntryManager->InitRenderEntries( swapChainInfo );
 
+        // Swapchain.
+        createRenderPass();
+        createDescriptorSetLayout();
+        createGraphicsPipeline();
+        createDepthResources();
         createDescriptorPool();
-
         createSwapChain();
         createImageViews();
         createFramebuffers();
         createDescriptorSets();
         createCommandBuffers();
-
         createSyncObjects();
     }
 
@@ -796,11 +801,15 @@ private:
     {
         const auto device = theVulkanContext().LogicalDevice();
 
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = swapChainInfo.numEntries;
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = swapChainInfo.numEntries;
+        const auto descriptorTypes = renderEntryManager->getDescriptorTypes();
+        const uint32_t numDescriptorTypes = descriptorTypes.size();
+
+        std::vector<VkDescriptorPoolSize> poolSizes( numDescriptorTypes );
+        for ( int i = 0; i < numDescriptorTypes; ++i )
+        {
+            poolSizes[i].type = descriptorTypes[i];
+            poolSizes[i].descriptorCount = swapChainInfo.numEntries;
+        }
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
