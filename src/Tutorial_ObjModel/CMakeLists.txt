@@ -21,7 +21,6 @@ target_include_directories ( ${TARGET_NAME}
 	PUBLIC ${Vulkan_INCLUDE_DIR}
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glfw/include
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glm
-	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/stb
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/tinyobjloader
 	)
 

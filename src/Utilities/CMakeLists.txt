@@ -13,4 +13,5 @@ set_target_properties ( ${TARGET_NAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PRO
 target_include_directories ( ${TARGET_NAME}
 	PUBLIC ${Vulkan_INCLUDE_DIR}
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glfw/include
+	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/stb
 	)

@@ -2,6 +2,8 @@
 #define SVK_IMAGE_H
 
 #include <vulkan/vulkan.h>
+#include <string>
+#include <memory>
 
 
 namespace svk {
@@ -31,6 +33,8 @@ public:
 
     ~Image();
 
+
+    static std::shared_ptr<Image> CreateFromFile( const CommandPool& commandPool, const std::string& filepath );
 
     void Reset(
         const uint32_t width,

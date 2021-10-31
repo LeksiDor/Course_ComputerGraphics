@@ -11,9 +11,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
@@ -199,7 +196,7 @@ private:
 
     CommandPool commandPool;
 
-    Image colorImage;
+    std::shared_ptr<Image> colorImage;
     Image depthImage;
 
     std::vector<Vertex> vertices;
@@ -246,7 +243,7 @@ private:
         createGraphicsPipeline();
         commandPool.Reset( context.GraphicsFamily().value() );
         createDepthResources();
-        createTextureImage();
+        colorImage = Image::CreateFromFile( commandPool, TEXTURE_PATH );
         loadModel();
         createVertexBuffer();
         createIndexBuffer();
@@ -310,7 +307,7 @@ private:
 
         cleanupSwapChain();
 
-        colorImage.Clear();
+        colorImage.reset();
         depthImage.Clear();
 
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -698,39 +695,6 @@ private:
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     }
 
-    void createTextureImage()
-    {
-        const auto device = theVulkanContext().LogicalDevice();
-
-        int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
-
-        if (!pixels) {
-            throw std::runtime_error( "Failed to load texture image: " + TEXTURE_PATH );
-        }
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-        memcpy(data, pixels, static_cast<size_t>(imageSize));
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        stbi_image_free(pixels);
-
-        colorImage.Reset( texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_TILING_OPTIMAL, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-
-        colorImage.TransitionLayout( commandPool, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-        copyBufferToImage( commandPool, stagingBuffer, colorImage.Handle(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight) );
-        colorImage.TransitionLayout( commandPool, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-    }
-
     void loadModel() {
         tinyobj::attrib_t attrib;
         std::vector<tinyobj::shape_t> shapes;
@@ -828,7 +792,7 @@ private:
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
             entry.bufferInfo = bufferInfo;
-            entry.colorImageInfo = colorImage.Info();
+            entry.colorImageInfo = colorImage->Info();
         }
     }
 
