@@ -125,8 +125,9 @@ struct RenderEntry
 struct RenderEntryManager
 {
     VkDescriptorImageInfo colorImageInfo = {};
+    std::vector<RenderEntry> entries;
 
-    std::vector<VkWriteDescriptorSet> getDescriptorWrites( const RenderEntry& entry, const VkDescriptorSet& descriptorSet ) const
+    std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const
     {
         std::vector<VkWriteDescriptorSet> descriptorWrites(2);
 
@@ -136,7 +137,7 @@ struct RenderEntryManager
         descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &entry.bufferInfo;
+        descriptorWrites[0].pBufferInfo = &entries[swapEntryIndex].bufferInfo;
 
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[1].dstSet = descriptorSet;
@@ -149,32 +150,38 @@ struct RenderEntryManager
         return descriptorWrites;
     }
 
-    RenderEntry Create( const SwapChain::Info& swapChainInfo )
+    void Init( const SwapChain::Info& swapChainInfo )
     {
+        Clear();
+        entries.resize( swapChainInfo.numEntries );
         const VkDeviceSize bufferSize = sizeof( UniformBufferObject );
-        RenderEntry entry;
-        createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = entry.uniformBuffer;
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
-        entry.bufferInfo = bufferInfo;
-        return entry;
+        for ( int i = 0; i < swapChainInfo.numEntries; ++i )
+        {
+            auto& entry = entries[i];
+            createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = entry.uniformBuffer;
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(UniformBufferObject);
+            entry.bufferInfo = bufferInfo;
+        }
     }
 
-    void Destroy( RenderEntry& entry )
+    void Clear()
     {
         const auto device = theVulkanContext().LogicalDevice();
-        if ( entry.uniformBuffer != VK_NULL_HANDLE )
+        for ( auto& entry : entries )
+        {
             vkDestroyBuffer( device, entry.uniformBuffer, nullptr );
-        if ( entry.uniformBufferMemory != VK_NULL_HANDLE )
             vkFreeMemory( device, entry.uniformBufferMemory, nullptr );
-        entry = RenderEntry {};
+        }
+        entries.clear();
     }
 
-    void Update( RenderEntry& entry, const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry )
+    void Update( const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex )
     {
         const auto device = theVulkanContext().LogicalDevice();
+        auto& entry = entries[swapEntryIndex];
 
         static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -212,7 +219,6 @@ private:
 
     std::vector<SwapChainEntry> swapChainEntries;
     std::vector<FenceEntry> fenceEntries;
-    std::vector<RenderEntry> renderEntries;
     RenderEntryManager renderEntryManager;
 
     VkRenderPass renderPass;
@@ -261,13 +267,13 @@ private:
             { "VK_LAYER_KHRONOS_validation" },
             { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
         );
+        commandPool.Reset( context.GraphicsFamily().value() );
 
         swapChainInfo.Update();
 
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
-        commandPool.Reset( context.GraphicsFamily().value() );
         createDepthResources();
         colorImage = Image::CreateFromFile( commandPool, TEXTURE_PATH );
         renderEntryManager.colorImageInfo = colorImage->Info();
@@ -275,7 +281,7 @@ private:
         createVertexBuffer();
         createIndexBuffer();
 
-        CreateRenderEntries();
+        renderEntryManager.Init( swapChainInfo );
 
         createDescriptorPool();
 
@@ -319,9 +325,7 @@ private:
 
         vkDestroySwapchainKHR(device, swapChain, nullptr);
 
-        for ( auto& entry : renderEntries )
-            renderEntryManager.Destroy( entry );
-        renderEntries.clear();
+        renderEntryManager.Clear();
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     }
@@ -382,17 +386,10 @@ private:
         createGraphicsPipeline();
         createDepthResources();
         createFramebuffers();
-        CreateRenderEntries();
+        renderEntryManager.Init( swapChainInfo );
         createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
-    }
-
-    void CreateRenderEntries()
-    {
-        renderEntries.resize( swapChainInfo.numEntries );
-        for ( int i = 0; i < swapChainInfo.numEntries; ++i )
-            renderEntries[i] = renderEntryManager.Create( swapChainInfo );
     }
 
     void createSwapChain()
@@ -852,9 +849,8 @@ private:
 
         for ( int i = 0; i < swapChainInfo.numEntries; ++i )
         {
-            const auto& renderEntry = renderEntries[i];
             const auto& swapChainEntry = swapChainEntries[i];
-            const auto descriptorWrites = renderEntryManager.getDescriptorWrites( renderEntry, swapChainEntry.descriptorSet );
+            const auto descriptorWrites = renderEntryManager.getDescriptorWrites( swapChainEntry.descriptorSet, i );
             vkUpdateDescriptorSets( device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr );
         }
     }
@@ -945,10 +941,9 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        auto& renderEntry = renderEntries[imageIndex];
         auto& swapChainEntry = swapChainEntries[imageIndex];
 
-        renderEntryManager.Update( renderEntry, swapChainInfo, swapChainEntry );
+        renderEntryManager.Update( swapChainInfo, swapChainEntry, imageIndex );
 
         if ( swapChainEntry.imageInFlight != VK_NULL_HANDLE )
             vkWaitForFences( device, 1, &swapChainEntry.imageInFlight, VK_TRUE, UINT64_MAX );
