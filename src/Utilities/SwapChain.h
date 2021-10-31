@@ -7,6 +7,29 @@
 
 namespace svk {
 
+
+struct SwapChainEntry
+{
+    VkImage image = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkFence imageInFlight = VK_NULL_HANDLE;
+    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+};
+
+
+struct FenceEntry
+{
+    VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
+    VkFence inFlightFence = VK_NULL_HANDLE;
+};
+
+
+class RenderEntryManager;
+
+
 class SwapChain
 {
 public:
@@ -25,6 +48,16 @@ public:
         void Update();
     };
 
+};
+
+
+class RenderEntryManager
+{
+public:
+    virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const = 0;
+    virtual void InitRenderEntries( const SwapChain::Info& swapChainInfo ) = 0;
+    virtual void ClearRenderEntries() = 0;
+    virtual void UpdateRenderEntry( const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex ) = 0;
 };
 
 

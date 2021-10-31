@@ -95,25 +95,6 @@ struct UniformBufferObject {
 };
 
 
-struct SwapChainEntry
-{
-    VkImage image = VK_NULL_HANDLE;
-    VkImageView imageView = VK_NULL_HANDLE;
-    VkFramebuffer framebuffer = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    VkFence imageInFlight = VK_NULL_HANDLE;
-    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-};
-
-
-struct FenceEntry
-{
-    VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
-    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
-    VkFence inFlightFence = VK_NULL_HANDLE;
-};
-
-
 struct RenderEntry
 {
     VkBuffer uniformBuffer = VK_NULL_HANDLE;
@@ -122,12 +103,12 @@ struct RenderEntry
 };
 
 
-struct RenderEntryManager
+struct AppRenderEntryManager : public RenderEntryManager
 {
     VkDescriptorImageInfo colorImageInfo = {};
     std::vector<RenderEntry> entries;
 
-    std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const
+    virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const override
     {
         std::vector<VkWriteDescriptorSet> descriptorWrites(2);
 
@@ -150,9 +131,9 @@ struct RenderEntryManager
         return descriptorWrites;
     }
 
-    void Init( const SwapChain::Info& swapChainInfo )
+    virtual void InitRenderEntries( const SwapChain::Info& swapChainInfo ) override
     {
-        Clear();
+        ClearRenderEntries();
         entries.resize( swapChainInfo.numEntries );
         const VkDeviceSize bufferSize = sizeof( UniformBufferObject );
         for ( int i = 0; i < swapChainInfo.numEntries; ++i )
@@ -167,7 +148,7 @@ struct RenderEntryManager
         }
     }
 
-    void Clear()
+    virtual void ClearRenderEntries() override
     {
         const auto device = theVulkanContext().LogicalDevice();
         for ( auto& entry : entries )
@@ -178,7 +159,7 @@ struct RenderEntryManager
         entries.clear();
     }
 
-    void Update( const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex )
+    virtual void UpdateRenderEntry( const SwapChain::Info& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex ) override
     {
         const auto device = theVulkanContext().LogicalDevice();
         auto& entry = entries[swapEntryIndex];
@@ -219,7 +200,7 @@ private:
 
     std::vector<SwapChainEntry> swapChainEntries;
     std::vector<FenceEntry> fenceEntries;
-    RenderEntryManager renderEntryManager;
+    std::shared_ptr<RenderEntryManager> renderEntryManager;
 
     VkRenderPass renderPass;
     VkDescriptorSetLayout descriptorSetLayout;
@@ -276,12 +257,14 @@ private:
         createGraphicsPipeline();
         createDepthResources();
         colorImage = Image::CreateFromFile( commandPool, TEXTURE_PATH );
-        renderEntryManager.colorImageInfo = colorImage->Info();
+        renderEntryManager.reset( new AppRenderEntryManager() );
+        auto& renderManager = *dynamic_cast<AppRenderEntryManager*>( renderEntryManager.get() );
+        renderManager.colorImageInfo = colorImage->Info();
         loadModel();
         createVertexBuffer();
         createIndexBuffer();
 
-        renderEntryManager.Init( swapChainInfo );
+        renderEntryManager->InitRenderEntries( swapChainInfo );
 
         createDescriptorPool();
 
@@ -325,7 +308,7 @@ private:
 
         vkDestroySwapchainKHR(device, swapChain, nullptr);
 
-        renderEntryManager.Clear();
+        renderEntryManager->ClearRenderEntries();
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     }
@@ -386,7 +369,7 @@ private:
         createGraphicsPipeline();
         createDepthResources();
         createFramebuffers();
-        renderEntryManager.Init( swapChainInfo );
+        renderEntryManager->InitRenderEntries( swapChainInfo );
         createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
@@ -850,7 +833,7 @@ private:
         for ( int i = 0; i < swapChainInfo.numEntries; ++i )
         {
             const auto& swapChainEntry = swapChainEntries[i];
-            const auto descriptorWrites = renderEntryManager.getDescriptorWrites( swapChainEntry.descriptorSet, i );
+            const auto descriptorWrites = renderEntryManager->getDescriptorWrites( swapChainEntry.descriptorSet, i );
             vkUpdateDescriptorSets( device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr );
         }
     }
@@ -943,7 +926,7 @@ private:
 
         auto& swapChainEntry = swapChainEntries[imageIndex];
 
-        renderEntryManager.Update( swapChainInfo, swapChainEntry, imageIndex );
+        renderEntryManager->UpdateRenderEntry( swapChainInfo, swapChainEntry, imageIndex );
 
         if ( swapChainEntry.imageInFlight != VK_NULL_HANDLE )
             vkWaitForFences( device, 1, &swapChainEntry.imageInFlight, VK_TRUE, UINT64_MAX );
