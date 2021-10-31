@@ -7,6 +7,9 @@
 namespace svk {
 
 
+class CommandPool;
+
+
 class Image
 {
 public:
@@ -54,6 +57,9 @@ public:
     static VkImageView CreateImageView( VkImage image, VkFormat format, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT );
     static VkSampler CreateSampler();
     static VkDeviceMemory CreateBindedDeviceMemory( VkImage image, const VkMemoryPropertyFlags memoryUsage );
+
+
+    void TransitionLayout( const CommandPool& commandPool, VkImageLayout newLayout );
 
 private:
     uint32_t width = 0;
