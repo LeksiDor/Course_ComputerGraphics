@@ -364,16 +364,13 @@ void SwapChain::createGraphicsPipeline()
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    if ( renderEntryManager != nullptr )
-    {
-        auto bindingDescriptions = renderEntryManager->getVertexBindingDescriptions();
-        auto attributeDescriptions = renderEntryManager->getVertexAttributeDescriptions();
+    auto bindingDescriptions = renderEntryManager->getVertexBindingDescriptions();
+    auto attributeDescriptions = renderEntryManager->getVertexAttributeDescriptions();
 
-        vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
-        vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
-        vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
-        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-    }
+    vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
+    vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+    vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
