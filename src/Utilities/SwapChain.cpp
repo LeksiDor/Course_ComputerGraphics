@@ -503,6 +503,9 @@ void SwapChain::createDescriptorPool()
     const auto descriptorTypes = renderEntryManager->getDescriptorTypes();
     const uint32_t numDescriptorTypes = descriptorTypes.size();
 
+    if ( numDescriptorTypes == 0 )
+        return;
+
     std::vector<VkDescriptorPoolSize> poolSizes( numDescriptorTypes );
     for ( int i = 0; i < numDescriptorTypes; ++i )
     {
@@ -523,6 +526,9 @@ void SwapChain::createDescriptorPool()
 
 void SwapChain::createDescriptorSets()
 {
+    if ( descriptorPool == VK_NULL_HANDLE )
+        return;
+
     const auto device = theVulkanContext().LogicalDevice();
 
     std::vector<VkDescriptorSetLayout> layouts( swapChainInfo.numEntries, descriptorSetLayout );
@@ -570,7 +576,9 @@ void SwapChain::createCommandBuffers()
         vkCmdBeginRenderPass( entry.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
 
         vkCmdBindPipeline( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline );
-        vkCmdBindDescriptorSets( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &entry.descriptorSet, 0, nullptr );
+
+        if ( entry.descriptorSet != VK_NULL_HANDLE )
+            vkCmdBindDescriptorSets( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &entry.descriptorSet, 0, nullptr );
 
         renderEntryManager->BindSwapEntryCommandBuffer( entry );
 
