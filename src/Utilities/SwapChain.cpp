@@ -64,7 +64,8 @@ SwapChain::~SwapChain()
 {
     const auto device = theVulkanContext().LogicalDevice();
     cleanupSwapChain();
-    vkDestroyDescriptorSetLayout( device, descriptorSetLayout, nullptr );
+    if ( descriptorSetLayout != VK_NULL_HANDLE )
+        vkDestroyDescriptorSetLayout( device, descriptorSetLayout, nullptr );
     for ( auto& entry : fenceEntries )
     {
         vkDestroySemaphore( device, entry.renderFinishedSemaphore, nullptr );
@@ -155,7 +156,8 @@ void SwapChain::cleanupSwapChain()
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 
-    renderEntryManager->ClearRenderEntries();
+    if ( renderEntryManager != nullptr )
+        renderEntryManager->ClearRenderEntries();
 
     vkDestroyDescriptorPool( device, descriptorPool, nullptr );
 }
@@ -362,13 +364,16 @@ void SwapChain::createGraphicsPipeline()
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    auto bindingDescriptions = renderEntryManager->getVertexBindingDescriptions();
-    auto attributeDescriptions = renderEntryManager->getVertexAttributeDescriptions();
+    if ( renderEntryManager != nullptr )
+    {
+        auto bindingDescriptions = renderEntryManager->getVertexBindingDescriptions();
+        auto attributeDescriptions = renderEntryManager->getVertexAttributeDescriptions();
 
-    vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
-    vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
-    vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
+        vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+        vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    }
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -434,8 +439,16 @@ void SwapChain::createGraphicsPipeline()
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    if ( descriptorSetLayout != VK_NULL_HANDLE )
+    {
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    }
+    else
+    {
+        pipelineLayoutInfo.setLayoutCount = 0;
+        pipelineLayoutInfo.pSetLayouts = VK_NULL_HANDLE;
+    }
 
     if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");

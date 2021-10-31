@@ -2,6 +2,7 @@
 #include "VulkanContext.h"
 #include "CommandPool.h"
 #include "Image.h"
+#include "SwapChain.h"
 
 #include <iostream>
 #include <fstream>
@@ -22,25 +23,6 @@ const std::string TUTORIAL_NAME = "Drawing a Triangle";
 using namespace svk;
 
 
-struct SwapChainEntry
-{
-    VkImage image = VK_NULL_HANDLE;
-    VkImageView imageView = VK_NULL_HANDLE;
-    VkFramebuffer framebuffer = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    VkFence imageInFlight = VK_NULL_HANDLE;
-    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
-};
-
-
-struct FenceEntry
-{
-    VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
-    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
-    VkFence inFlightFence = VK_NULL_HANDLE;
-};
-
-
 class HelloTriangleApplication {
 public:
     void run() {
@@ -52,21 +34,8 @@ public:
 
 private:
     GLFWwindow* window;
-
-    VkSwapchainKHR swapChain;
-    VkFormat swapChainImageFormat;
-    VkExtent2D swapChainExtent;
-
-    std::vector<SwapChainEntry> swapChainEntries;
-    std::vector<FenceEntry> fenceEntries;
-
-    VkRenderPass renderPass;
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
-
-    CommandPool commandPool;
-
-    size_t currentFrame = 0;
+    std::shared_ptr<SwapChain> swapchain;
+    std::shared_ptr<CommandPool> commandPool;
 
     void initWindow() {
         glfwInit();
@@ -86,14 +55,23 @@ private:
             { "VK_LAYER_KHRONOS_validation" },
             { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
             );
-        createSwapChain();
-        createImageViews();
+        commandPool.reset( new CommandPool( context.GraphicsFamily().value() ) );
+
+        swapchain.reset( new SwapChain() );
+        swapchain->commandPool = commandPool;
+        swapchain->renderEntryManager = nullptr;
+        swapchain->window = window;
+        swapchain->vertShaderPath = std::string(PROJECT_NAME) + "/shader.vert.spv";
+        swapchain->fragShaderPath = std::string(PROJECT_NAME) + "/shader.frag.spv";
+
+        swapchain->swapChainInfo.Update();
+        swapchain->createSwapChain();
+        swapchain->createImageViews();
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
-        commandPool.Reset( context.GraphicsFamily().value() );
         createCommandBuffers();
-        createSyncObjects();
+        swapchain->createSyncObjects();
     }
 
     void mainLoop()
@@ -110,111 +88,11 @@ private:
 
     void cleanup()
     {
-        const auto device = theVulkanContext().LogicalDevice();
-        const int maxFramesInFlight = theVulkanContext().MaxFramesInFlight();
-
-        for ( auto& entry : swapChainEntries )
-        {
-            vkDestroyFramebuffer( device, entry.framebuffer, nullptr );
-            commandPool.FreeCommandBuffer( entry.commandBuffer );
-            vkDestroyImageView( device, entry.imageView, nullptr );
-        }
-        swapChainEntries.clear();
-
-        for ( auto& entry : fenceEntries )
-        {
-            vkDestroySemaphore( device, entry.renderFinishedSemaphore, nullptr );
-            vkDestroySemaphore(device, entry.imageAvailableSemaphore, nullptr );
-            vkDestroyFence( device, entry.inFlightFence, nullptr );
-        }
-        fenceEntries.clear();
-
-        commandPool.Clear();
-
-        vkDestroyPipeline(device, graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-        vkDestroyRenderPass(device, renderPass, nullptr);
-
-        vkDestroySwapchainKHR(device, swapChain, nullptr);
-
+        swapchain.reset();
+        commandPool.reset();
         theVulkanContext().Destroy();
-
         glfwDestroyWindow(window);
-
         glfwTerminate();
-    }
-
-    void createSwapChain()
-    {
-        const auto device = theVulkanContext().LogicalDevice();
-        const auto physicalDevice = theVulkanContext().PhysicalDevice();
-        const auto surface = theVulkanContext().Surface();
-        const auto graphicsFamily = theVulkanContext().GraphicsFamily();
-        const auto presentFamily = theVulkanContext().PresentFamily();
-
-        SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport( physicalDevice, surface );
-
-        VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat( swapChainSupport.formats );
-        VkPresentModeKHR presentMode = ChooseSwapPresentMode( swapChainSupport.presentModes );
-        VkExtent2D extent = ChooseSwapExtent( window, swapChainSupport.capabilities );
-
-        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-            imageCount = swapChainSupport.capabilities.maxImageCount;
-        }
-
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = surface;
-
-        createInfo.minImageCount = imageCount;
-        createInfo.imageFormat = surfaceFormat.format;
-        createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
-        createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-        uint32_t queueFamilyIndices[] = { graphicsFamily.value(), presentFamily.value()};
-
-        if ( graphicsFamily != presentFamily )
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-        }
-        else
-        {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        }
-
-        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = presentMode;
-        createInfo.clipped = VK_TRUE;
-
-        createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-        if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create swap chain!");
-        }
-
-        vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-
-        swapChainEntries.resize( imageCount );
-
-        std::vector<VkImage> swapChainImages( imageCount );
-        vkGetSwapchainImagesKHR( device, swapChain, &imageCount, swapChainImages.data() );
-        for ( int i = 0; i < imageCount; ++i )
-            swapChainEntries[i].image = swapChainImages[i];
-
-        swapChainImageFormat = surfaceFormat.format;
-        swapChainExtent = extent;
-    }
-
-    void createImageViews()
-    {
-        for ( auto& entry : swapChainEntries )
-            entry.imageView = Image::CreateImageView( entry.image, swapChainImageFormat );
     }
 
     void createRenderPass()
@@ -222,7 +100,7 @@ private:
         const auto device = theVulkanContext().LogicalDevice();
 
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = swapChainImageFormat;
+        colorAttachment.format = swapchain->swapChainInfo.imageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -257,7 +135,7 @@ private:
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+        if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &swapchain->renderPass) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass!");
         }
     }
@@ -299,14 +177,14 @@ private:
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float) swapChainExtent.width;
-        viewport.height = (float) swapChainExtent.height;
+        viewport.width = (float) swapchain->swapChainInfo.extent.width;
+        viewport.height = (float) swapchain->swapChainInfo.extent.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = swapChainExtent;
+        scissor.extent = swapchain->swapChainInfo.extent;
 
         VkPipelineViewportStateCreateInfo viewportState{};
         viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -350,7 +228,7 @@ private:
         pipelineLayoutInfo.setLayoutCount = 0;
         pipelineLayoutInfo.pushConstantRangeCount = 0;
 
-        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &swapchain->pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }
 
@@ -364,12 +242,12 @@ private:
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.layout = pipelineLayout;
-        pipelineInfo.renderPass = renderPass;
+        pipelineInfo.layout = swapchain->pipelineLayout;
+        pipelineInfo.renderPass = swapchain->renderPass;
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &swapchain->graphicsPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create graphics pipeline!");
         }
 
@@ -381,7 +259,7 @@ private:
     {
         const auto device = theVulkanContext().LogicalDevice();
 
-        for ( auto& entry : swapChainEntries )
+        for ( auto& entry : swapchain->swapChainEntries )
         {
             VkImageView attachments[] = {
                 entry.imageView
@@ -389,11 +267,11 @@ private:
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = renderPass;
+            framebufferInfo.renderPass = swapchain->renderPass;
             framebufferInfo.attachmentCount = 1;
             framebufferInfo.pAttachments = attachments;
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.width = swapchain->swapChainInfo.extent.width;
+            framebufferInfo.height = swapchain->swapChainInfo.extent.height;
             framebufferInfo.layers = 1;
 
             if ( vkCreateFramebuffer( device, &framebufferInfo, nullptr, &entry.framebuffer ) != VK_SUCCESS )
@@ -403,17 +281,17 @@ private:
 
     void createCommandBuffers()
     {
-        for ( auto& entry : swapChainEntries )
+        for ( auto& entry : swapchain->swapChainEntries )
         {
-            entry.commandBuffer = commandPool.CreateCommandBuffer();
+            entry.commandBuffer = commandPool->CreateCommandBuffer();
             CommandPool::BeginCommandBuffer( entry.commandBuffer, false );
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = renderPass;
+            renderPassInfo.renderPass = swapchain->renderPass;
             renderPassInfo.framebuffer = entry.framebuffer;
             renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = swapChainExtent;
+            renderPassInfo.renderArea.extent = swapchain->swapChainInfo.extent;
 
             VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
             renderPassInfo.clearValueCount = 1;
@@ -421,7 +299,7 @@ private:
 
             vkCmdBeginRenderPass( entry.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE );
 
-            vkCmdBindPipeline( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline );
+            vkCmdBindPipeline( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, swapchain->graphicsPipeline );
 
             vkCmdDraw( entry.commandBuffer, 3, 1, 0, 0 );
 
@@ -431,46 +309,20 @@ private:
         }
     }
 
-    void createSyncObjects()
-    {
-        const auto& context = theVulkanContext();
-        const auto device = context.LogicalDevice();
-        const int maxFramesInFlight = context.MaxFramesInFlight();
-
-        fenceEntries.resize( maxFramesInFlight );
-
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        for ( auto& entry : fenceEntries )
-        {
-            if (   vkCreateSemaphore( device, &semaphoreInfo, nullptr, &entry.imageAvailableSemaphore ) != VK_SUCCESS
-                || vkCreateSemaphore( device, &semaphoreInfo, nullptr, &entry.renderFinishedSemaphore ) != VK_SUCCESS
-                || vkCreateFence( device, &fenceInfo, nullptr, &entry.inFlightFence ) != VK_SUCCESS )
-            {
-                throw std::runtime_error("failed to create synchronization objects for a frame!");
-            }
-        }
-    }
-
     void drawFrame()
     {
         const auto device = theVulkanContext().LogicalDevice();
         const auto presentQueue = theVulkanContext().PresentQueue();
         const int maxFramesInFlight = theVulkanContext().MaxFramesInFlight();
 
-        auto& fenceEntry = fenceEntries[currentFrame];
+        auto& fenceEntry = swapchain->fenceEntries[swapchain->currentFrame];
 
         vkWaitForFences( device, 1, &fenceEntry.inFlightFence, VK_TRUE, UINT64_MAX );
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR( device, swapChain, UINT64_MAX, fenceEntry.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex );
+        VkResult result = vkAcquireNextImageKHR( device, swapchain->swapChain, UINT64_MAX, fenceEntry.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex );
 
-        auto& swapChainEntry = swapChainEntries[imageIndex];
+        auto& swapChainEntry = swapchain->swapChainEntries[imageIndex];
 
         if ( swapChainEntry.imageInFlight != VK_NULL_HANDLE )
             vkWaitForFences( device, 1, &swapChainEntry.imageInFlight, VK_TRUE, UINT64_MAX );
@@ -488,7 +340,7 @@ private:
         presentInfo.waitSemaphoreCount = signalSemaphores.size();
         presentInfo.pWaitSemaphores = signalSemaphores.data();
 
-        VkSwapchainKHR swapChains[] = {swapChain};
+        VkSwapchainKHR swapChains[] = {swapchain->swapChain};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
 
@@ -496,7 +348,7 @@ private:
 
         vkQueuePresentKHR(presentQueue, &presentInfo);
 
-        currentFrame = (currentFrame + 1) % theVulkanContext().MaxFramesInFlight();
+        swapchain->currentFrame = (swapchain->currentFrame + 1) % theVulkanContext().MaxFramesInFlight();
     }
 };
 

@@ -86,11 +86,7 @@ public:
         framebufferResized = true;
     }
 
-
-    VkPipelineLayout PipelineLayout() const { return pipelineLayout; }
-
-
-private:
+public:
     void cleanupSwapChain();
     void recreateSwapChain();
     void createSwapChain();
@@ -108,7 +104,7 @@ private:
     VkFormat findSupportedFormat( const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features );
     VkFormat findDepthFormat();
 
-private:
+public:
 
     GLFWwindow* window = nullptr;
 
