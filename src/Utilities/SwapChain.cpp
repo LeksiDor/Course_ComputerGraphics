@@ -364,12 +364,12 @@ void SwapChain::createGraphicsPipeline()
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    auto bindingDescriptions = renderEntryManager->getVertexBindingDescriptions();
+    auto bindingDescription = renderEntryManager->getVertexBindingDescription();
     auto attributeDescriptions = renderEntryManager->getVertexAttributeDescriptions();
 
-    vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
-    vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -590,7 +590,7 @@ void SwapChain::createCommandBuffers()
         if ( entry.descriptorSet != VK_NULL_HANDLE )
             vkCmdBindDescriptorSets( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &entry.descriptorSet, 0, nullptr );
 
-        renderEntryManager->BindSwapEntryCommandBuffer( entry );
+        renderEntryManager->ExecuteCmdDraw( entry );
 
         vkCmdEndRenderPass( entry.commandBuffer );
 

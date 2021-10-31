@@ -76,35 +76,18 @@ struct RenderEntry
 class HelloTriangleApplication : public RenderEntryManager
 {
 public:
-    virtual std::vector<VkVertexInputBindingDescription> getVertexBindingDescriptions() const override
+    virtual VkVertexInputBindingDescription getVertexBindingDescription() const override
     {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        return { bindingDescription };
+        return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
     }
 
     virtual std::vector<VkVertexInputAttributeDescription> getVertexAttributeDescriptions() const override
     {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(3);
-
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-        return attributeDescriptions;
+        return {
+            { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) },
+            { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) },
+            { 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord) },
+        };
     }
 
     virtual std::vector<VkDescriptorType> getDescriptorTypes() const override
@@ -185,7 +168,7 @@ public:
         vkUnmapMemory( device, entry.uniformBufferMemory );
     }
 
-    virtual void BindSwapEntryCommandBuffer( const SwapChainEntry& entry ) override
+    virtual void ExecuteCmdDraw( const SwapChainEntry& entry ) override
     {
         VkBuffer vertexBuffers[] = {vertexBuffer};
         VkDeviceSize offsets[] = {0};

@@ -53,14 +53,38 @@ struct SwapChainInfo
 class RenderEntryManager
 {
 public:
-    virtual std::vector<VkVertexInputBindingDescription> getVertexBindingDescriptions() const = 0;
+    virtual VkVertexInputBindingDescription getVertexBindingDescription() const = 0;
     virtual std::vector<VkVertexInputAttributeDescription> getVertexAttributeDescriptions() const = 0;
-    virtual std::vector<VkDescriptorType> getDescriptorTypes() const = 0;
-    virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const = 0;
-    virtual void InitRenderEntries( const SwapChainInfo& swapChainInfo ) = 0;
-    virtual void ClearRenderEntries() = 0;
-    virtual void UpdateRenderEntry( const SwapChainInfo& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex ) = 0;
-    virtual void BindSwapEntryCommandBuffer( const SwapChainEntry& entry ) = 0;
+
+    virtual std::vector<VkDescriptorType> getDescriptorTypes() const
+    {
+        return {};
+    }
+
+    virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const
+    {
+        return {};
+    }
+
+    virtual void InitRenderEntries( const SwapChainInfo& swapChainInfo )
+    {
+        return;
+    }
+
+    virtual void ClearRenderEntries()
+    {
+        return;
+    }
+
+    virtual void UpdateRenderEntry( const SwapChainInfo& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex )
+    {
+        return;
+    }
+
+    virtual void ExecuteCmdDraw( const SwapChainEntry& entry )
+    {
+        return;
+    }
 };
 
 
