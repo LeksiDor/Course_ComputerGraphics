@@ -190,11 +190,7 @@ public:
         VkBuffer vertexBuffers[] = {vertexBuffer};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers( entry.commandBuffer, 0, 1, vertexBuffers, offsets );
-
         vkCmdBindIndexBuffer( entry.commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32 );
-
-        vkCmdBindDescriptorSets( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, swapchain->PipelineLayout(), 0, 1, &entry.descriptorSet, 0, nullptr );
-
         vkCmdDrawIndexed( entry.commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0 );
     }
 
