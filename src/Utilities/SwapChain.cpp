@@ -677,23 +677,42 @@ void SwapChain::resetVertexIndexBuffer( const std::vector<uint32_t>& indices, co
     numDrawIndices = indices.size();
 
     // Create vertex buffer.
-    createBuffer( vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory );
-    vkMapMemory( device, stagingBufferMemory, 0, vertexBufferSize, 0, &data );
-    memcpy( data, vertexBufferData, vertexBufferSize );
-    vkUnmapMemory( device, stagingBufferMemory );
     createBuffer( vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory );
-    copyBuffer( *commandPool, stagingBuffer, vertexBuffer, vertexBufferSize );
-    vkDestroyBuffer( device, stagingBuffer, nullptr );
-    vkFreeMemory( device, stagingBufferMemory, nullptr );
+    uploadVertexData( vertexBufferSize, vertexBufferData );
 
     // Create index buffer.
+    const VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+    createBuffer( indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory );
+    uploadIndexData( indices );
+}
+
+void SwapChain::uploadIndexData( const std::vector<uint32_t>& indices )
+{
+    const auto device = theVulkanContext().LogicalDevice();
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
+    void* data = nullptr;
     const VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
     createBuffer( indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory );
     vkMapMemory(device, stagingBufferMemory, 0, indexBufferSize, 0, &data );
     memcpy( data, indices.data(), indexBufferSize );
     vkUnmapMemory( device, stagingBufferMemory );
-    createBuffer( indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory );
     copyBuffer( *commandPool, stagingBuffer, indexBuffer, indexBufferSize );
+    vkDestroyBuffer( device, stagingBuffer, nullptr );
+    vkFreeMemory( device, stagingBufferMemory, nullptr );
+}
+
+void SwapChain::uploadVertexData( const VkDeviceSize vertexBufferSize, const void* vertexBufferData )
+{
+    const auto device = theVulkanContext().LogicalDevice();
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
+    void* data = nullptr;
+    createBuffer( vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory );
+    vkMapMemory( device, stagingBufferMemory, 0, vertexBufferSize, 0, &data );
+    memcpy( data, vertexBufferData, vertexBufferSize );
+    vkUnmapMemory( device, stagingBufferMemory );
+    copyBuffer( *commandPool, stagingBuffer, vertexBuffer, vertexBufferSize );
     vkDestroyBuffer( device, stagingBuffer, nullptr );
     vkFreeMemory( device, stagingBufferMemory, nullptr );
 }

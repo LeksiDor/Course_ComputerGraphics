@@ -111,6 +111,22 @@ public:
         framebufferResized = true;
     }
 
+    template< typename Vertex >
+    void ResetVertexIndexBuffer(
+        const std::vector<Vertex>& vertices,
+        const std::vector<uint32_t>& indices )
+    {
+        const VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+        resetVertexIndexBuffer( indices, vertexBufferSize, vertices.data() );
+    }
+
+    template< typename Vertex >
+    void ReuploadVertexBuffer( const std::vector<Vertex>& vertices )
+    {
+        const VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+        uploadVertexData( vertexBufferSize, vertices.data() );
+    }
+
 
 private:
     void Init_Internal(
@@ -145,6 +161,9 @@ private:
         const VkDeviceSize vertexBufferSize,
         const void* vertexBufferData
     );
+
+    void uploadIndexData( const std::vector<uint32_t>& indices );
+    void uploadVertexData( const VkDeviceSize vertexBufferSize, const void* vertexBufferData );
 
     void cleanupVertexIndexBuffers();
 
