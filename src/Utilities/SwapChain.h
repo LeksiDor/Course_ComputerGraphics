@@ -111,14 +111,6 @@ public:
         framebufferResized = true;
     }
 
-    template< typename Vertex >
-    void ResetVertexIndexBuffers(
-        const std::vector<Vertex>& vertices,
-        const std::vector<uint32_t>& indices )
-    {
-        const VkDeviceSize bufferSize = sizeof(Vertex) * vertices.size();
-        resetVertexIndexBuffer( indices, bufferSize, vertices.data() );
-    }
 
 public:
     void Init_Internal(
