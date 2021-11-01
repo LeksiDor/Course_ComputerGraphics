@@ -32,40 +32,16 @@ void SwapChainInfo::Update()
 }
 
 
-void SwapChain::Init(
-    std::shared_ptr<CommandPool> commandPool,
-    RenderEntryManager* renderEntryManager,
-    const std::string& vertShaderPath,
-    const std::string& fragShaderPath )
-{
-    this->commandPool = commandPool;
-    this->renderEntryManager = renderEntryManager;
-    this->window = theVulkanContext().Window();
-    this->vertShaderPath = vertShaderPath;
-    this->fragShaderPath = fragShaderPath;
-
-    swapChainInfo.Update();
-    renderEntryManager->InitRenderEntries( swapChainInfo );
-    createRenderPass();
-    createDescriptorSetLayout();
-    createGraphicsPipeline();
-    createDepthResources();
-    createDescriptorPool();
-    createSwapChain();
-    createImageViews();
-    createFramebuffers();
-    createDescriptorSets();
-    createCommandBuffers();
-    createSyncObjects();
-}
-
-
 SwapChain::~SwapChain()
 {
     const auto device = theVulkanContext().LogicalDevice();
+
     cleanupSwapChain();
+
     if ( descriptorSetLayout != VK_NULL_HANDLE )
         vkDestroyDescriptorSetLayout( device, descriptorSetLayout, nullptr );
+    descriptorSetLayout = VK_NULL_HANDLE;
+
     for ( auto& entry : fenceEntries )
     {
         vkDestroySemaphore( device, entry.renderFinishedSemaphore, nullptr );
@@ -74,6 +50,8 @@ SwapChain::~SwapChain()
     }
     fenceEntries.clear();
     depthImage.reset();
+
+    cleanupVertexIndexBuffers();
 }
 
 
@@ -133,6 +111,31 @@ void SwapChain::DrawFrame()
     }
 
     currentFrame = (currentFrame + 1) % maxFramesInFlight;
+}
+
+
+void SwapChain::Init_Internal( std::shared_ptr<CommandPool> commandPool, RenderEntryManager* renderEntryManager, const std::vector<uint32_t>& indices, const VkDeviceSize vertexBufferSize, const void* vertexBufferData, const std::string& vertShaderPath, const std::string& fragShaderPath )
+{
+    this->commandPool = commandPool;
+    this->renderEntryManager = renderEntryManager;
+    this->window = theVulkanContext().Window();
+    this->vertShaderPath = vertShaderPath;
+    this->fragShaderPath = fragShaderPath;
+
+    swapChainInfo.Update();
+    renderEntryManager->InitRenderEntries( swapChainInfo );
+    createRenderPass();
+    createDescriptorSetLayout();
+    createGraphicsPipeline();
+    createDepthResources();
+    createDescriptorPool();
+    createSwapChain();
+    createImageViews();
+    createFramebuffers();
+    createDescriptorSets();
+    resetVertexIndexBuffer( indices, vertexBufferSize, vertexBufferData );
+    createCommandBuffers();
+    createSyncObjects();
 }
 
 
@@ -590,7 +593,11 @@ void SwapChain::createCommandBuffers()
         if ( entry.descriptorSet != VK_NULL_HANDLE )
             vkCmdBindDescriptorSets( entry.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &entry.descriptorSet, 0, nullptr );
 
-        renderEntryManager->ExecuteCmdDraw( entry );
+        VkBuffer vertexBuffers[] = {vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers( entry.commandBuffer, 0, 1, vertexBuffers, offsets );
+        vkCmdBindIndexBuffer( entry.commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32 );
+        vkCmdDrawIndexed( entry.commandBuffer, numDrawIndices, 1, 0, 0, 0 );
 
         vkCmdEndRenderPass( entry.commandBuffer );
 
@@ -649,6 +656,68 @@ VkFormat SwapChain::findDepthFormat() {
         VK_IMAGE_TILING_OPTIMAL,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
     );
+}
+
+
+void SwapChain::resetVertexIndexBuffer( const std::vector<uint32_t>& indices, const VkDeviceSize vertexBufferSize, const void* vertexBufferData )
+{
+    const auto device = theVulkanContext().LogicalDevice();
+
+    if ( indices.size() == 0 )
+        throw std::runtime_error( "Index buffer has zero size." );
+    if ( vertexBufferSize == 0 )
+        throw std::runtime_error( "Vertex buffer has zero size." );
+
+    cleanupVertexIndexBuffers();
+
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
+    void* data = nullptr;
+
+    numDrawIndices = indices.size();
+
+    // Create vertex buffer.
+    createBuffer( vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory );
+    vkMapMemory( device, stagingBufferMemory, 0, vertexBufferSize, 0, &data );
+    memcpy( data, vertexBufferData, vertexBufferSize );
+    vkUnmapMemory( device, stagingBufferMemory );
+    createBuffer( vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory );
+    copyBuffer( *commandPool, stagingBuffer, vertexBuffer, vertexBufferSize );
+    vkDestroyBuffer( device, stagingBuffer, nullptr );
+    vkFreeMemory( device, stagingBufferMemory, nullptr );
+
+    // Create index buffer.
+    const VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+    createBuffer( indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory );
+    vkMapMemory(device, stagingBufferMemory, 0, indexBufferSize, 0, &data );
+    memcpy( data, indices.data(), indexBufferSize );
+    vkUnmapMemory( device, stagingBufferMemory );
+    createBuffer( indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory );
+    copyBuffer( *commandPool, stagingBuffer, indexBuffer, indexBufferSize );
+    vkDestroyBuffer( device, stagingBuffer, nullptr );
+    vkFreeMemory( device, stagingBufferMemory, nullptr );
+}
+
+
+void SwapChain::cleanupVertexIndexBuffers()
+{
+    const auto device = theVulkanContext().LogicalDevice();
+
+    if ( indexBuffer != VK_NULL_HANDLE )
+        vkDestroyBuffer( device, indexBuffer, nullptr );
+    indexBuffer = VK_NULL_HANDLE;
+
+    if ( indexBufferMemory != VK_NULL_HANDLE )
+        vkFreeMemory( device, indexBufferMemory, nullptr );
+    indexBufferMemory = VK_NULL_HANDLE;
+
+    if ( vertexBuffer != VK_NULL_HANDLE )
+        vkDestroyBuffer( device, vertexBuffer, nullptr );
+    vertexBuffer = VK_NULL_HANDLE;
+
+    if ( vertexBufferMemory != VK_NULL_HANDLE )
+        vkFreeMemory( device, vertexBufferMemory, nullptr );
+    vertexBufferMemory = VK_NULL_HANDLE;
 }
 
 

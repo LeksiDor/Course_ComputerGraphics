@@ -80,11 +80,6 @@ public:
     {
         return;
     }
-
-    virtual void ExecuteCmdDraw( const SwapChainEntry& entry )
-    {
-        return;
-    }
 };
 
 
@@ -94,12 +89,18 @@ public:
 
     SwapChain() = default;
 
+    template< typename Vertex >
     void Init(
         std::shared_ptr<CommandPool> commandPool,
         RenderEntryManager* renderEntryManager,
+        const std::vector<Vertex>& vertices,
+        const std::vector<uint32_t>& indices,
         const std::string& vertShaderPath,
-        const std::string& fragShaderPath
-    );
+        const std::string& fragShaderPath )
+    {
+        const VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+        Init_Internal( commandPool, renderEntryManager, indices, vertexBufferSize, vertices.data(), vertShaderPath, fragShaderPath );
+    }
 
     ~SwapChain();
 
@@ -110,7 +111,26 @@ public:
         framebufferResized = true;
     }
 
+    template< typename Vertex >
+    void ResetVertexIndexBuffers(
+        const std::vector<Vertex>& vertices,
+        const std::vector<uint32_t>& indices )
+    {
+        const VkDeviceSize bufferSize = sizeof(Vertex) * vertices.size();
+        resetVertexIndexBuffer( indices, bufferSize, vertices.data() );
+    }
+
 public:
+    void Init_Internal(
+        std::shared_ptr<CommandPool> commandPool,
+        RenderEntryManager* renderEntryManager,
+        const std::vector<uint32_t>& indices,
+        const VkDeviceSize vertexBufferSize,
+        const void* vertexBufferData,
+        const std::string& vertShaderPath,
+        const std::string& fragShaderPath
+    );
+
     void cleanupSwapChain();
     void recreateSwapChain();
     void createSwapChain();
@@ -127,6 +147,14 @@ public:
 
     VkFormat findSupportedFormat( const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features );
     VkFormat findDepthFormat();
+
+    void resetVertexIndexBuffer(
+        const std::vector<uint32_t>& indices,
+        const VkDeviceSize vertexBufferSize,
+        const void* vertexBufferData
+    );
+
+    void cleanupVertexIndexBuffers();
 
 public:
 
@@ -146,6 +174,13 @@ public:
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
+
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer indexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
+
+    uint32_t numDrawIndices = 0;
 
     std::shared_ptr<CommandPool> commandPool;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;

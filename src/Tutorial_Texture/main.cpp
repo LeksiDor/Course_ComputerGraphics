@@ -50,7 +50,7 @@ const std::vector<Vertex> vertices = {
     {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 };
 
-const std::vector<uint16_t> indices = {
+const std::vector<uint32_t> indices = {
     0, 1, 2, 2, 3, 0
 };
 
@@ -82,12 +82,6 @@ private:
 
     std::shared_ptr<CommandPool> commandPool;
     std::shared_ptr<Image> texture;
-
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
-
 
     void initWindow() {
         glfwInit();
@@ -198,15 +192,6 @@ public:
         vkUnmapMemory( device, entry.uniformBufferMemory );
     }
 
-    virtual void ExecuteCmdDraw( const SwapChainEntry& entry ) override
-    {
-        VkBuffer vertexBuffers[] = {vertexBuffer};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers( entry.commandBuffer, 0, 1, vertexBuffers, offsets );
-        vkCmdBindIndexBuffer( entry.commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16 );
-        vkCmdDrawIndexed( entry.commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0 );
-    }
-
     void initVulkan() {
         auto& context = theVulkanContext();
         context.Init(
@@ -219,14 +204,14 @@ public:
 
         // App-specific data.
         texture = Image::CreateFromFile( *commandPool, TEXTURE_PATH );
-        createVertexBuffer();
-        createIndexBuffer();
 
         // Swapchain.
         swapchain.reset( new SwapChain() );
         swapchain->Init(
             commandPool,
             this,
+            vertices,
+            indices,
             std::string(PROJECT_NAME) + "/shader.vert.spv",
             std::string(PROJECT_NAME) + "/shader.frag.spv"
         );
@@ -244,71 +229,12 @@ public:
 
     void cleanup()
     {
-        const auto device = theVulkanContext().LogicalDevice();
-
         swapchain.reset();
-
         texture.reset();
-
-        vkDestroyBuffer(device, indexBuffer, nullptr);
-        vkFreeMemory(device, indexBufferMemory, nullptr);
-
-        vkDestroyBuffer(device, vertexBuffer, nullptr);
-        vkFreeMemory(device, vertexBufferMemory, nullptr);
-
         commandPool.reset();
-
         theVulkanContext().Destroy();
-
         glfwDestroyWindow(window);
-
         glfwTerminate();
-    }
-
-    void createVertexBuffer()
-    {
-        const auto device = theVulkanContext().LogicalDevice();
-
-        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-            memcpy(data, vertices.data(), (size_t) bufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
-
-        copyBuffer( *commandPool, stagingBuffer, vertexBuffer, bufferSize );
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-    }
-
-    void createIndexBuffer()
-    {
-        const auto device = theVulkanContext().LogicalDevice();
-
-        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-            memcpy(data, indices.data(), (size_t) bufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-
-        copyBuffer( *commandPool, stagingBuffer, indexBuffer, bufferSize );
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 };
 
