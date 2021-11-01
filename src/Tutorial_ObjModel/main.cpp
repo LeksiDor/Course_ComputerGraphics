@@ -1,8 +1,6 @@
+#include "ApplicationBase.h"
 #include "VulkanBase.h"
-#include "VulkanContext.h"
-#include "CommandPool.h"
 #include "Image.h"
-#include "SwapChain.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -11,22 +9,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
+#include <iostream>
+#include <chrono>
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-#include <iostream>
-#include <fstream>
-#include <stdexcept>
-#include <algorithm>
-#include <chrono>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdint>
-#include <array>
-#include <optional>
-#include <set>
-#include <unordered_map>
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -35,8 +23,6 @@ const std::string TUTORIAL_NAME = "Loading Models";
 
 const std::string MODEL_PATH = std::string(ROOT_DIRECTORY) + "/media/viking_room.obj";
 const std::string TEXTURE_PATH = std::string(ROOT_DIRECTORY) + "/media/viking_room.png";
-
-using namespace svk;
 
 
 
@@ -73,9 +59,16 @@ struct RenderEntry
 };
 
 
-class HelloTriangleApplication : public RenderEntryManager
+class AppExample : public svk::ApplicationBase
 {
+private:
+    std::vector<RenderEntry> renderEntries;
+    std::shared_ptr<svk::Image> colorImage;
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+
 public:
+
     virtual VkVertexInputBindingDescription getVertexBindingDescription() const override
     {
         return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
@@ -118,7 +111,7 @@ public:
         return descriptorWrites;
     }
 
-    virtual void InitRenderEntries( const SwapChainInfo& swapChainInfo ) override
+    virtual void InitRenderEntries( const svk::SwapChainInfo& swapChainInfo ) override
     {
         ClearRenderEntries();
         renderEntries.resize( swapChainInfo.numEntries );
@@ -126,7 +119,7 @@ public:
         for ( int i = 0; i < swapChainInfo.numEntries; ++i )
         {
             auto& entry = renderEntries[i];
-            createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
+            svk::createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = entry.uniformBuffer;
             bufferInfo.offset = 0;
@@ -137,7 +130,7 @@ public:
 
     virtual void ClearRenderEntries() override
     {
-        const auto device = theVulkanContext().LogicalDevice();
+        const auto device = svk::theVulkanContext().LogicalDevice();
         for ( auto& entry : renderEntries )
         {
             vkDestroyBuffer( device, entry.uniformBuffer, nullptr );
@@ -146,9 +139,9 @@ public:
         renderEntries.clear();
     }
 
-    virtual void UpdateRenderEntry( const SwapChainInfo& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex ) override
+    virtual void UpdateRenderEntry( const svk::SwapChainInfo& swapChainInfo, const svk::SwapChainEntry& swapChainEntry, const int swapEntryIndex ) override
     {
-        const auto device = theVulkanContext().LogicalDevice();
+        const auto device = svk::theVulkanContext().LogicalDevice();
         auto& entry = renderEntries[swapEntryIndex];
 
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -168,57 +161,8 @@ public:
         vkUnmapMemory( device, entry.uniformBufferMemory );
     }
 
-public:
-    void run() {
-        initWindow();
-        initVulkan();
-        mainLoop();
-        cleanup();
-    }
-
-private:
-    GLFWwindow* window;
-
-    std::shared_ptr<SwapChain> swapchain;
-    std::vector<RenderEntry> renderEntries;
-
-    std::shared_ptr<CommandPool> commandPool;
-    std::shared_ptr<Image> colorImage;
-
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-
-    void initWindow() {
-        glfwInit();
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-        window = glfwCreateWindow( WIDTH, HEIGHT, TUTORIAL_NAME.c_str(), nullptr, nullptr );
-        glfwSetWindowUserPointer(window, this);
-        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    }
-
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
-        app->swapchain->SetResizeFlag();
-    }
-
-    void initVulkan() {
-        auto& context = theVulkanContext();
-        context.Init(
-            TUTORIAL_NAME,
-            window,
-            { "VK_LAYER_KHRONOS_validation" },
-            { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
-        );
-        commandPool.reset( new CommandPool( context.GraphicsFamily().value() ) );
-
-        // App-specific data.
-        colorImage = Image::CreateFromFile( *commandPool, TEXTURE_PATH );
-        loadModel();
-
-        // Swapchain.
-        swapchain.reset( new SwapChain() );
+    virtual void InitSwapChain() override
+    {
         swapchain->Init(
             commandPool,
             this,
@@ -229,41 +173,34 @@ private:
         );
     }
 
-    void mainLoop()
+    virtual void InitAppResources() override
     {
-        const auto device = theVulkanContext().LogicalDevice();
-        while ( !glfwWindowShouldClose( window ) )
-        {
-            glfwPollEvents();
-            swapchain->DrawFrame();
-        }
-        vkDeviceWaitIdle( device );
+        colorImage = svk::Image::CreateFromFile( *commandPool, TEXTURE_PATH );
+        loadModel();
     }
 
-    void cleanup()
+    virtual void DestroyAppResources() override
     {
-        swapchain.reset();
         colorImage.reset();
-        commandPool.reset();
-        theVulkanContext().Destroy();
-        glfwDestroyWindow(window);
-        glfwTerminate();
     }
 
-    void loadModel() {
+
+    void loadModel()
+    {
         tinyobj::attrib_t attrib;
         std::vector<tinyobj::shape_t> shapes;
         std::vector<tinyobj::material_t> materials;
         std::string warn, err;
 
-        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str())) {
-            throw std::runtime_error(warn + err);
-        }
+        if ( !tinyobj::LoadObj( &attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str() ) )
+            throw std::runtime_error( warn + err );
 
         std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
-        for (const auto& shape : shapes) {
-            for (const auto& index : shape.mesh.indices) {
+        for (const auto& shape : shapes)
+        {
+            for ( const auto& index : shape.mesh.indices )
+            {
                 Vertex vertex{};
 
                 vertex.pos = {
@@ -290,15 +227,26 @@ private:
     }
 };
 
-int main() {
-    HelloTriangleApplication app;
 
-    try {
-        app.run();
-    } catch (const std::exception& e) {
+int main()
+{
+    AppExample app;
+    try
+    {
+        app.Init(
+            WIDTH,
+            HEIGHT,
+            TUTORIAL_NAME,
+            { "VK_LAYER_KHRONOS_validation" },
+            { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
+        );
+        app.MainLoop();
+        app.Destroy();
+    }
+    catch ( const std::exception& e )
+    {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-
     return EXIT_SUCCESS;
 }

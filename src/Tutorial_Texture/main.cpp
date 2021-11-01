@@ -17,8 +17,6 @@ const std::string TUTORIAL_NAME = "Texture Mapping";
 
 const std::string TEXTURE_PATH = std::string(ROOT_DIRECTORY) + "/media/texture.jpg";
 
-using namespace svk;
-
 
 struct Vertex {
     glm::vec2 pos;
@@ -57,7 +55,7 @@ class AppExample : public svk::ApplicationBase
 {
 private:
     std::vector<RenderEntry> renderEntries;
-    std::shared_ptr<Image> texture;
+    std::shared_ptr<svk::Image> texture;
 
 public:
 
@@ -103,7 +101,7 @@ public:
         return descriptorWrites;
     }
 
-    virtual void InitRenderEntries( const SwapChainInfo& swapChainInfo ) override
+    virtual void InitRenderEntries( const svk::SwapChainInfo& swapChainInfo ) override
     {
         ClearRenderEntries();
         renderEntries.resize( swapChainInfo.numEntries );
@@ -111,7 +109,7 @@ public:
         for ( int i = 0; i < swapChainInfo.numEntries; ++i )
         {
             auto& entry = renderEntries[i];
-            createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
+            svk::createBuffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, entry.uniformBuffer, entry.uniformBufferMemory );
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = entry.uniformBuffer;
             bufferInfo.offset = 0;
@@ -122,7 +120,7 @@ public:
 
     virtual void ClearRenderEntries() override
     {
-        const auto device = theVulkanContext().LogicalDevice();
+        const auto device = svk::theVulkanContext().LogicalDevice();
         for ( auto& entry : renderEntries )
         {
             vkDestroyBuffer( device, entry.uniformBuffer, nullptr );
@@ -131,9 +129,9 @@ public:
         renderEntries.clear();
     }
 
-    virtual void UpdateRenderEntry( const SwapChainInfo& swapChainInfo, const SwapChainEntry& swapChainEntry, const int swapEntryIndex ) override
+    virtual void UpdateRenderEntry( const svk::SwapChainInfo& swapChainInfo, const svk::SwapChainEntry& swapChainEntry, const int swapEntryIndex ) override
     {
-        const auto device = theVulkanContext().LogicalDevice();
+        const auto device = svk::theVulkanContext().LogicalDevice();
         auto& entry = renderEntries[swapEntryIndex];
 
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -167,7 +165,7 @@ public:
 
     virtual void InitAppResources() override
     {
-        texture = Image::CreateFromFile( *commandPool, TEXTURE_PATH );
+        texture = svk::Image::CreateFromFile( *commandPool, TEXTURE_PATH );
     }
 
     virtual void DestroyAppResources() override
@@ -177,7 +175,8 @@ public:
 };
 
 
-int main() {
+int main()
+{
     AppExample app;
     try
     {
