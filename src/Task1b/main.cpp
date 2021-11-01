@@ -13,9 +13,9 @@ struct Vertex {
 
 
 const std::vector<Vertex> vertices_local = {
-    { {  0.0f, -0.5f }, { 1.0f, 0.0f, 0.0f} },
-    { {  0.5f,  0.5f }, { 0.0f, 1.0f, 0.0f} },
-    { { -0.5f,  0.5f }, { 0.0f, 0.0f, 1.0f} },
+    { {  0.0f, -0.2f }, { 1.0f, 0.0f, 0.0f} },
+    { {  0.2f,  0.2f }, { 0.0f, 1.0f, 0.0f} },
+    { { -0.2f,  0.2f }, { 0.0f, 0.0f, 1.0f} },
 };
 
 std::vector<Vertex> vertices = vertices_local;
@@ -58,10 +58,13 @@ public:
     {
         std::random_device rd;  // Will be used to obtain a seed for the random number engine
         std::mt19937 gen( rd() ); // Standard mersenne_twister_engine seeded with rd()
-        std::uniform_real_distribution<> dis( 0.0, 1.0 );
+        std::uniform_real_distribution<> dis( -1.0, 1.0 );
 
-        rotPos = dis(gen) * _2Pi;
+        rotPos = dis(gen) * M_PI;
         rotSpeed = 1.0f;
+
+        linSpeed.x = dis(gen) * 0.2f;
+        linSpeed.y = dis(gen) * 0.2f;
     }
 
     virtual void UpdateFrameData() override
@@ -81,15 +84,31 @@ public:
         {
             glm::vec2& pos = vertices[i].pos;
             const glm::vec2& pos_loc = vertices_local[i].pos;
+
+            linPos.x += linSpeed.x * deltaTime;
+            linPos.y += linSpeed.y * deltaTime;
+
             pos.x = linPos.x + cosX*pos_loc.x - sinX*pos_loc.y;
             pos.y = linPos.y + sinX*pos_loc.x + cosX*pos_loc.y;
+
+            // Change speed direction on collision.
+            bool collided = false;
+            if ( pos.x >  1.0f ) { linSpeed.x = -std::abs( linSpeed.x ); collided = true; }
+            if ( pos.x < -1.0f ) { linSpeed.x =  std::abs( linSpeed.x ); collided = true; }
+            if ( pos.y >  1.0f ) { linSpeed.y = -std::abs( linSpeed.y ); collided = true; }
+            if ( pos.y < -1.0f ) { linSpeed.y =  std::abs( linSpeed.y ); collided = true; }
+
+            if ( collided )
+                std::cout << "bounce: " << pos.x << " " << pos.y << std::endl;
         }
 
         swapchain->ReuploadVertexBuffer( vertices );
     }
 
+    // Linear position + speed.
     glm::vec2 linPos = { 0.0f, 0.0f };
     glm::vec2 linSpeed = { 0.0f, 0.0f };
+    // Rotational position + speed.
     float rotPos = 0.0f;
     float rotSpeed = 0.0f;
 };
@@ -102,7 +121,7 @@ int main()
     {
         app.Init(
             800, // width
-            600, // height
+            800, // height
             PROJECT_NAME, // App name.
             { "VK_LAYER_KHRONOS_validation" },
             { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
