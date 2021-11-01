@@ -32,12 +32,12 @@ std::vector<Vertex> vertices = vertices_local;
 
 std::vector<uint32_t> indices = { 1, 0, 2, 3, 4, 5, };
 
-
+// Local corners of rectangle in counter-clockwise order.
 const std::vector<glm::vec3> corners = {
     { -recSizeX*0.5, -recSizeY*0.5, 0.0f },
     {  recSizeX*0.5, -recSizeY*0.5, 0.0f },
-    { -recSizeX*0.5,  recSizeY*0.5, 0.0f },
     {  recSizeX*0.5,  recSizeY*0.5, 0.0f },
+    { -recSizeX*0.5,  recSizeY*0.5, 0.0f },
 };
 
 const std::vector<glm::vec3> vertices_base = {
@@ -67,8 +67,8 @@ int numTriangles = 2;
 // Create subdivision of rectangle.
 void PopulateTriangles()
 {
-    const int numX = 8;
-    const int numY = 6;
+    const int numX = 16;
+    const int numY = 12;
     const glm::vec3 delta = { recSizeX / float(numX), recSizeY / float(numY), 0.0f };
     const glm::vec3 start = { -recSizeX * 0.5, -recSizeY * 0.5, 0.0f };
     numTriangles = numX * numY * 2;
@@ -273,13 +273,36 @@ public:
 
             std::cout << "Mouse click: " << clickPos.x << " " << clickPos.y << std::endl;
 
-            // Explode triangles.
-            for ( int tri_ind = 0; tri_ind < numTriangles; ++tri_ind )
+            // Check if inside rectangle.
+            glm::vec2 cur_corners[4];
+            for ( int i = 0; i < 4; ++i )
             {
-                const float dir_angle = RandomValue() * _2Pi;
-                const glm::vec3 dir = { cos(dir_angle), sin(dir_angle), 0.0f };
-                const float value = TrianglesExplodeSpeedMin + RandomValue() * ( TrianglesExplodeSpeedMax - TrianglesExplodeSpeedMin );
-                TrianglesExplodeSpeed[tri_ind] += value*dir;
+                glm::vec3 pos = corners[i];
+                pos = glm::rotateZ( pos, app->rotPos );
+                pos += app->linPos;
+                cur_corners[i] = { pos.x, pos.y };
+            }
+
+            bool isInside = true;
+            for ( int i = 0; i < 4; ++i )
+            {
+                const glm::vec2 p1 = cur_corners[i];
+                const glm::vec2 p2 = cur_corners[(i+1)%4];
+                //const float D = (x2 - x1) * (yp - y1) - (xp - x1) * (y2 - y1)
+                const float D = (p2.x - p1.x) * (clickPos.y - p1.y) - (clickPos.x - p1.x) * (p2.y - p1.y);
+                isInside = isInside && (D > 0.0f);
+            }
+
+            if ( isInside )
+            {
+                // Explode triangles.
+                for ( int tri_ind = 0; tri_ind < numTriangles; ++tri_ind )
+                {
+                    const float dir_angle = RandomValue() * _2Pi;
+                    const glm::vec3 dir = { cos(dir_angle), sin(dir_angle), 0.0f };
+                    const float value = TrianglesExplodeSpeedMin + RandomValue() * ( TrianglesExplodeSpeedMax - TrianglesExplodeSpeedMin );
+                    TrianglesExplodeSpeed[tri_ind] += value*dir;
+                }
             }
         }
     }
