@@ -12,19 +12,20 @@ struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
     glm::vec2 texCoord;
+    uint32_t isTexture;
 };
 
 
 const std::vector<Vertex> vertices_local = {
     // Triangle.
-    { {  0.0f, -0.2f, 0.0f }, { 1.0f, 0.0f, 0.0f}, { 0.0f, 0.0f } },
-    { {  0.2f,  0.2f, 0.0f }, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f } },
-    { { -0.2f,  0.2f, 0.0f }, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f } },
+    { {  0.0f, -0.2f, 0.0f }, { 1.0f, 0.0f, 0.0f}, { 0.0f, 0.0f }, 0 },
+    { {  0.2f,  0.2f, 0.0f }, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f }, 0 },
+    { { -0.2f,  0.2f, 0.0f }, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f }, 0 },
     // Rectangle.
-    { { -0.4f, -0.3f, 0.0f }, { 1.0f, 0.0f, 0.0f}, { 0.0f, 0.0f } },
-    { {  0.4f, -0.3f, 0.0f }, { 0.0f, 1.0f, 0.0f}, { 1.0f, 0.0f } },
-    { { -0.4f,  0.3f, 0.0f }, { 0.0f, 0.0f, 1.0f}, { 0.0f, 1.0f } },
-    { {  0.4f,  0.3f, 0.0f }, { 0.6f, 0.6f, 0.6f}, { 1.0f, 1.0f } },
+    { { -0.4f, -0.3f, 0.0f }, { 1.0f, 0.0f, 0.0f}, { 0.0f, 0.0f }, 1 },
+    { {  0.4f, -0.3f, 0.0f }, { 0.0f, 1.0f, 0.0f}, { 1.0f, 0.0f }, 1 },
+    { { -0.4f,  0.3f, 0.0f }, { 0.0f, 0.0f, 1.0f}, { 0.0f, 1.0f }, 1 },
+    { {  0.4f,  0.3f, 0.0f }, { 0.6f, 0.6f, 0.6f}, { 1.0f, 1.0f }, 1 },
 };
 
 std::vector<Vertex> vertices = vertices_local;
@@ -61,6 +62,7 @@ public:
             { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) },
             { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) },
             { 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord) },
+            { 3, 0, VK_FORMAT_R32_UINT, offsetof(Vertex, isTexture) },
         };
     }
 
