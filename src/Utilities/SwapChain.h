@@ -112,7 +112,7 @@ public:
     }
 
 
-public:
+private:
     void Init_Internal(
         std::shared_ptr<CommandPool> commandPool,
         RenderEntryManager* renderEntryManager,
@@ -148,7 +148,7 @@ public:
 
     void cleanupVertexIndexBuffers();
 
-public:
+private:
 
     GLFWwindow* window = nullptr;
 
