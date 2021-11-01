@@ -86,7 +86,7 @@ public:
     virtual void Destroy()
     {
         swapchain.reset();
-        DestroyAppData();
+        DestroyAppResources();
         commandPool.reset();
         theVulkanContext().Destroy();
         glfwDestroyWindow(window);
@@ -94,7 +94,7 @@ public:
     }
 
 
-    virtual void DestroyAppData()
+    virtual void DestroyAppResources()
     {
         return;
     }

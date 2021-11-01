@@ -1,25 +1,14 @@
+#include "ApplicationBase.h"
 #include "VulkanBase.h"
-#include "VulkanContext.h"
-#include "CommandPool.h"
 #include "Image.h"
-#include "SwapChain.h"
 
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <iostream>
-#include <fstream>
-#include <stdexcept>
-#include <algorithm>
 #include <chrono>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdint>
-#include <array>
-#include <optional>
-#include <set>
+
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -64,42 +53,14 @@ struct RenderEntry
 };
 
 
-class HelloTriangleApplication : public RenderEntryManager
+class AppExample : public svk::ApplicationBase
 {
-public:
-    void run() {
-        initWindow();
-        initVulkan();
-        mainLoop();
-        cleanup();
-    }
-
 private:
-    GLFWwindow* window;
-
-    std::shared_ptr<SwapChain> swapchain;
     std::vector<RenderEntry> renderEntries;
-
-    std::shared_ptr<CommandPool> commandPool;
     std::shared_ptr<Image> texture;
 
-    void initWindow() {
-        glfwInit();
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-        window = glfwCreateWindow( WIDTH, HEIGHT, TUTORIAL_NAME.c_str(), nullptr, nullptr );
-        glfwSetWindowUserPointer(window, this);
-        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    }
-
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
-        app->swapchain->SetResizeFlag();
-    }
-
-
 public:
+
     virtual VkVertexInputBindingDescription getVertexBindingDescription() const override
     {
         return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
@@ -192,21 +153,8 @@ public:
         vkUnmapMemory( device, entry.uniformBufferMemory );
     }
 
-    void initVulkan() {
-        auto& context = theVulkanContext();
-        context.Init(
-            TUTORIAL_NAME,
-            window,
-            { "VK_LAYER_KHRONOS_validation" },
-            { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
-        );
-        commandPool.reset( new CommandPool( context.GraphicsFamily().value() ) );
-
-        // App-specific data.
-        texture = Image::CreateFromFile( *commandPool, TEXTURE_PATH );
-
-        // Swapchain.
-        swapchain.reset( new SwapChain() );
+    virtual void InitSwapChain() override
+    {
         swapchain->Init(
             commandPool,
             this,
@@ -217,36 +165,36 @@ public:
         );
     }
 
-    void mainLoop()
+    virtual void InitAppResources() override
     {
-        const auto device = theVulkanContext().LogicalDevice();
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-            swapchain->DrawFrame();
-        }
-        vkDeviceWaitIdle(device);
+        texture = Image::CreateFromFile( *commandPool, TEXTURE_PATH );
     }
 
-    void cleanup()
+    virtual void DestroyAppResources() override
     {
-        swapchain.reset();
         texture.reset();
-        commandPool.reset();
-        theVulkanContext().Destroy();
-        glfwDestroyWindow(window);
-        glfwTerminate();
     }
 };
 
-int main() {
-    HelloTriangleApplication app;
 
-    try {
-        app.run();
-    } catch (const std::exception& e) {
+int main() {
+    AppExample app;
+    try
+    {
+        app.Init(
+            WIDTH,
+            HEIGHT,
+            TUTORIAL_NAME,
+            { "VK_LAYER_KHRONOS_validation" },
+            { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
+        );
+        app.MainLoop();
+        app.Destroy();
+    }
+    catch ( const std::exception& e )
+    {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-
     return EXIT_SUCCESS;
 }
