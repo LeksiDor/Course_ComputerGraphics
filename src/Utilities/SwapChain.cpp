@@ -314,26 +314,12 @@ void SwapChain::createRenderPass()
 void SwapChain::createDescriptorSetLayout()
 {
     const auto device = theVulkanContext().LogicalDevice();
+    const auto bindings = renderEntryManager->getDescriptorBindings();
 
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.pImmutableSamplers = nullptr;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-    samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 1;
-    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    samplerLayoutBinding.pImmutableSamplers = nullptr;
-    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+    layoutInfo.bindingCount = bindings.size();
+    layoutInfo.pBindings = bindings.empty() ? VK_NULL_HANDLE : bindings.data();
 
     if ( vkCreateDescriptorSetLayout( device, &layoutInfo, nullptr, &descriptorSetLayout ) != VK_SUCCESS )
         throw std::runtime_error("failed to create descriptor set layout!");
@@ -512,17 +498,16 @@ void SwapChain::createDepthResources() {
 void SwapChain::createDescriptorPool()
 {
     const auto device = theVulkanContext().LogicalDevice();
+    const auto bindings = renderEntryManager->getDescriptorBindings();
+    const uint32_t numBindings = bindings.size();
 
-    const auto descriptorTypes = renderEntryManager->getDescriptorTypes();
-    const uint32_t numDescriptorTypes = descriptorTypes.size();
-
-    if ( numDescriptorTypes == 0 )
+    if ( numBindings == 0 )
         return;
 
-    std::vector<VkDescriptorPoolSize> poolSizes( numDescriptorTypes );
-    for ( int i = 0; i < numDescriptorTypes; ++i )
+    std::vector<VkDescriptorPoolSize> poolSizes( numBindings );
+    for ( int i = 0; i < numBindings; ++i )
     {
-        poolSizes[i].type = descriptorTypes[i];
+        poolSizes[i].type = bindings[i].descriptorType;
         poolSizes[i].descriptorCount = swapChainInfo.numEntries;
     }
 

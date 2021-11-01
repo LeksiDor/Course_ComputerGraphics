@@ -56,7 +56,7 @@ public:
     virtual VkVertexInputBindingDescription getVertexBindingDescription() const = 0;
     virtual std::vector<VkVertexInputAttributeDescription> getVertexAttributeDescriptions() const = 0;
 
-    virtual std::vector<VkDescriptorType> getDescriptorTypes() const
+    virtual std::vector<VkDescriptorSetLayoutBinding> getDescriptorBindings() const
     {
         return {};
     }
