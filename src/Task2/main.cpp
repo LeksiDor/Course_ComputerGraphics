@@ -7,6 +7,9 @@
 #include <random>
 
 
+// Task 2: Rotating rectangle.
+
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;

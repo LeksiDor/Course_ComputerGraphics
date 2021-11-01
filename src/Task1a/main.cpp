@@ -4,6 +4,9 @@
 #include <iostream>
 
 
+// Task 1a: Render triangle.
+
+
 struct Vertex {
     glm::vec2 pos;
     glm::vec3 color;

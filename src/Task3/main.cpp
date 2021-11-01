@@ -8,6 +8,10 @@
 #include <random>
 
 
+// Task 3: Floating triangle (texture-less) and rotating rectangle (textured).
+// Whether to apply a texture or a plain color gradient, is controlled by extra vertex parameter.
+
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;

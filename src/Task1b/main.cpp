@@ -6,6 +6,19 @@
 #include <random>
 
 
+// Task 1b: Triangle bouncing from edges.
+
+// Task 1c: Short high-level description is the following.
+// Presented code is a very nicely refactored version of the Vulkan tutorials.
+// Among three tutorials (simple triangle, texture loading, and object loading),
+// all common data structures and functions were reorganized into a form of auxiliary library.
+// This significantly reduces the size of the examples (e.g., 900+ lines initially vs 80 lines of refactored).
+// Provided library can be further used as a basis for some Vulkan-heavy engine,
+// or be provided to the next generation of students as a very helpful material for the computer graphics course.
+// Right now, it is limited to use only single-stage graphic pipelines, consisting of editable vertex+fragment shader pair.
+// Library also provides a simplistic functionality to image and buffer handling.
+
+
 struct Vertex {
     glm::vec2 pos;
     glm::vec3 color;

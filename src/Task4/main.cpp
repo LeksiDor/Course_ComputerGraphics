@@ -16,6 +16,11 @@
 #include <tiny_obj_loader.h>
 
 
+// Task 4: Load some obj file.
+// It's essentially just a copy-pasted tutorial.
+// Although instead of 1600+ lines of initial code, my code is just 260.
+
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;

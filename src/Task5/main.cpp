@@ -8,6 +8,12 @@
 #include <random>
 
 
+// Task 5: Some creative non-trivial feature.
+// When you mouse click on a rectangle, it will explode into hundreds of pieces.
+// These pieces have random starting velocity, controlled by hard-coded constants.
+// After explosion, small pieces will come back together again in time.
+
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec2 texCoord;
