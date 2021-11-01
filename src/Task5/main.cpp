@@ -16,7 +16,7 @@ struct Vertex {
 const float recSizeX = 0.8f;
 const float recSizeY = 0.6f;
 
-const std::vector<Vertex> vertices_local = {
+std::vector<Vertex> vertices_local = {
 
     { { -recSizeX*0.5, -recSizeY*0.5, 0.0f }, { 0.0f, 0.0f } },
     { {  recSizeX*0.5, -recSizeY*0.5, 0.0f }, { 1.0f, 0.0f } },
@@ -30,7 +30,7 @@ const std::vector<Vertex> vertices_local = {
 
 std::vector<Vertex> vertices = vertices_local;
 
-const std::vector<uint32_t> indices = { 1, 0, 2, 3, 4, 5, };
+std::vector<uint32_t> indices = { 1, 0, 2, 3, 4, 5, };
 
 
 const std::vector<glm::vec3> corners = {
@@ -40,6 +40,13 @@ const std::vector<glm::vec3> corners = {
     {  recSizeX*0.5,  recSizeY*0.5, 0.0f },
 };
 
+const std::vector<glm::vec3> vertices_base = {
+    { 0, 0, 0 }, { 1, 0, 0 }, { 0, 1, 0 },
+    { 1, 1, 0 }, { 1, 0, 0 }, { 0, 1, 0 },
+};
+
+const std::vector<uint32_t> indices_base = { 1, 0, 2,   3, 4, 5, };
+
 
 const float _2Pi = float( 2.0 * M_PI );
 
@@ -48,13 +55,41 @@ const float MaxLinearSpeed = 0.5f;
 const float MaxRotationSpeed = 0.8f;
 
 const float TrianglesPullToCenter = 2.0f; // Constant speed that pulls to center.
-const float TrianglesExplodeSpeedMin = 1.0f; // Min out-of-center starting speed.
+const float TrianglesExplodeSpeedMin = 3.0f; // Min out-of-center starting speed.
 const float TrianglesExplodeSpeedMax = 5.0f; // Max out-of-center starting speed.
 const float TrianglesExplodeSpeedDeterioration = 2.0f; // How much speed deteriorates per second.
 
 std::vector<glm::vec3> TrianglesExplodeSpeed; // Out-of-center speed.
 std::vector<glm::vec3> TrianglesExplodeShift; // Relative position to center.
 int numTriangles = 2;
+
+
+// Create subdivision of rectangle.
+void PopulateTriangles()
+{
+    const int numX = 8;
+    const int numY = 6;
+    const glm::vec3 delta = { recSizeX / float(numX), recSizeY / float(numY), 0.0f };
+    const glm::vec3 start = { -recSizeX * 0.5, -recSizeY * 0.5, 0.0f };
+    numTriangles = numX * numY * 2;
+    vertices_local.resize( numTriangles * 3 );
+    indices.resize( numTriangles * 3 );
+    for ( int i_x = 0; i_x < numX; ++i_x )
+    {
+        for ( int i_y = 0; i_y < numY; ++i_y )
+        {
+            for ( int i = 0; i < 6; ++i )
+            {
+                const int index = i + 6*i_x + 6*numX*i_y;
+                vertices_local[index].pos = start + delta*( glm::vec3(i_x,i_y,0) + vertices_base[i] );
+                vertices_local[index].texCoord.x = float( i_x + vertices_base[i].x ) / float(numX);
+                vertices_local[index].texCoord.y = float( i_y + vertices_base[i].y ) / float(numY);
+                indices[index] = 6*i_x + 6*numX*i_y + indices_base[i];
+            }
+        }
+    }
+    vertices = vertices_local;
+}
 
 
 const std::string TEXTURE_PATH = std::string(ROOT_DIRECTORY) + "/media/texture.jpg";
@@ -137,6 +172,8 @@ public:
         linSpeed.x = (-1.0f + 2.0f*RandomValue()) * MaxLinearSpeed;
         linSpeed.y = (-1.0f + 2.0f*RandomValue()) * MaxLinearSpeed;
         rotSpeed = (-1.0f + 2.0f*RandomValue()) * MaxRotationSpeed;
+
+        PopulateTriangles();
 
         TrianglesExplodeSpeed.resize( numTriangles );
         TrianglesExplodeShift.resize( numTriangles );
