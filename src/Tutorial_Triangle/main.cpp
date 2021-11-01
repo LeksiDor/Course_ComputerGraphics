@@ -9,8 +9,6 @@ const uint32_t HEIGHT = 600;
 
 const std::string TUTORIAL_NAME = "Drawing a Triangle";
 
-using namespace svk;
-
 
 struct Vertex {
     glm::vec2 pos;
@@ -27,11 +25,10 @@ const std::vector<Vertex> vertices = {
 const std::vector<uint32_t> indices = { 0, 2, 1 };
 
 
-class AppExample : public ApplicationBase
+class AppExample : public svk::ApplicationBase
 {
 public:
 
-    // Inherited via ApplicationBase
     virtual VkVertexInputBindingDescription getVertexBindingDescription() const override
     {
         return { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
