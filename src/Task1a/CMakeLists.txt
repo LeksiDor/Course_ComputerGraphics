@@ -20,6 +20,7 @@ target_include_directories ( ${TARGET_NAME}
 	PUBLIC ../Utilities
 	PUBLIC ${Vulkan_INCLUDE_DIR}
 	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glfw/include
+	PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/glm
 	)
 
 add_dependencies( ${TARGET_NAME} Utilities )
