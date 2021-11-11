@@ -17,12 +17,7 @@ struct UniformsStruct
 };
 
 
-
-const vec2 Res = vec2( 800, 600 );
-
-
 #ifdef __cplusplus
-#include <glm/glm.hpp>
 } // namespace shader
 #endif // __cplusplus
 
