@@ -86,9 +86,9 @@ layout(location = 0) out vec4 outColor;
 
 struct material
 {
-    // The color of the surface
-    vec4 color;
-    // You can add your own material features here!
+    vec3 diffuse;
+    vec3 specular;
+    float specularPower;
 };
 
 // Good resource for finding more building blocks for distance functions:
@@ -183,7 +183,9 @@ float blob_distance(vec3 p)
 material blob_material(vec3 p)
 {
     material mat;
-    mat.color = vec4(1.0, 0.5, 0.3, 0.0);
+    mat.diffuse  = vec3( 1.0, 0.5, 0.3 );
+    mat.specular = vec3( 1.0, 0.5, 0.3 );
+    mat.specularPower = 2.0;
     return mat;
 }
 
@@ -195,7 +197,9 @@ float sphere_distance(vec3 p)
 material sphere_material(vec3 p)
 {
     material mat;
-    mat.color = vec4(0.1, 0.2, 0.0, 1.0);
+    mat.diffuse  = vec3( 0.1, 0.2, 0.0 );
+    mat.specular = vec3( 0.1, 0.2, 0.0 );
+    mat.specularPower = 2.0;
     return mat;
 }
 
@@ -210,9 +214,20 @@ float room_distance(vec3 p)
 material room_material(vec3 p)
 {
     material mat;
-    mat.color = vec4(1.0, 1.0, 1.0, 1.0);
-    if(p.x <= -2.98) mat.color.rgb = vec3(1.0, 0.0, 0.0);
-    else if(p.x >= 2.98) mat.color.rgb = vec3(0.0, 1.0, 0.0);
+    if ( p.x <= -2.98 )
+    {
+        mat.diffuse = vec3( 1.0, 0.0, 0.0 );
+    }
+    else if ( p.x >= 2.98 )
+    {
+        mat.diffuse = vec3( 0.0, 1.0, 0.0 );
+    }
+    else
+    {
+        mat.diffuse = vec3( 1.0, 1.0, 1.0 );
+    }
+    mat.specular = mat.diffuse;
+    mat.specularPower = 2.0;
     return mat;
 }
 
@@ -224,13 +239,17 @@ float crate_distance(vec3 p)
 material crate_material(vec3 p)
 {
     material mat;
-    mat.color = vec4(1.0, 1.0, 1.0, 1.0);
+    mat.diffuse = vec3( 1.0, 1.0, 1.0 );
 
     vec3 q = rot_y(p-vec3(-1,-1,5), u_time) * 0.98;
-    if(fract(q.x + floor(q.y*2.0) * 0.5 + floor(q.z*2.0) * 0.5) < 0.5)
+    if ( fract( q.x + floor(q.y*2.0) * 0.5 + floor(q.z*2.0) * 0.5 ) < 0.5 )
     {
-        mat.color.rgb = vec3(0.0, 1.0, 1.0);
+        mat.diffuse = vec3( 0.0, 1.0, 1.0 );
     }
+
+    mat.specular = mat.diffuse;
+    mat.specularPower = 2.0;
+
     return mat;
 }
 
@@ -370,7 +389,7 @@ vec3 render( vec3 rayOri, vec3 rayDir )
 
     // Add some lighting code here!
 
-    return mat.color.rgb;
+    return mat.diffuse.rgb;
 }
 
 void main()
