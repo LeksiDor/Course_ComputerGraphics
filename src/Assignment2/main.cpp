@@ -37,9 +37,9 @@ struct RenderEntry
 
 struct UniformsStruct
 {
-    alignas(16) glm::vec2 resolution; // Resolution of the screen.
-    alignas(16) glm::vec2 mouse; // Mouse coordinates.
-    alignas(16) float time; // Time since startup, in seconds.
+    glm::vec2 resolution; // Resolution of the screen.
+    glm::vec2 mouse; // Mouse coordinates.
+    float time; // Time since startup, in seconds.
 };
 
 
