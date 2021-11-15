@@ -25,7 +25,7 @@ layout(location = 0) out vec4 outColor;
 // example functionality          | X | Example note: control this with var YYYY
 // Mandatory functionalities ----------------------------------------------------
 //   Perspective projection       | X |
-//   Phong shading                |   |
+//   Phong shading                | X |
 //   Camera movement and rotation |   |
 //   Sharp shadows                |   |
 // Extra functionalities --------------------------------------------------------
@@ -90,6 +90,8 @@ struct material
     vec3 specular;
     float specularPower;
 };
+
+const material material_default = material( vec3(0.8), vec3(0.8), 20.0 );
 
 // Good resource for finding more building blocks for distance functions:
 // https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
@@ -182,10 +184,8 @@ float blob_distance(vec3 p)
 
 material blob_material(vec3 p)
 {
-    material mat;
-    mat.diffuse  = vec3( 1.0, 0.5, 0.3 );
-    mat.specular = vec3( 1.0, 0.5, 0.3 );
-    mat.specularPower = 2.0;
+    material mat = material_default;
+    mat.diffuse = mat.specular = vec3( 1.0, 0.5, 0.3 );
     return mat;
 }
 
@@ -197,9 +197,7 @@ float sphere_distance(vec3 p)
 material sphere_material(vec3 p)
 {
     material mat;
-    mat.diffuse  = vec3( 0.1, 0.2, 0.0 );
-    mat.specular = vec3( 0.1, 0.2, 0.0 );
-    mat.specularPower = 2.0;
+    mat.diffuse = mat.specular = vec3( 0.1, 0.2, 0.0 );
     return mat;
 }
 
@@ -227,7 +225,6 @@ material room_material(vec3 p)
         mat.diffuse = vec3( 1.0, 1.0, 1.0 );
     }
     mat.specular = mat.diffuse;
-    mat.specularPower = 2.0;
     return mat;
 }
 
@@ -240,16 +237,12 @@ material crate_material(vec3 p)
 {
     material mat;
     mat.diffuse = vec3( 1.0, 1.0, 1.0 );
-
     vec3 q = rot_y(p-vec3(-1,-1,5), u_time) * 0.98;
     if ( fract( q.x + floor(q.y*2.0) * 0.5 + floor(q.z*2.0) * 0.5 ) < 0.5 )
     {
         mat.diffuse = vec3( 0.0, 1.0, 1.0 );
     }
-
     mat.specular = mat.diffuse;
-    mat.specularPower = 2.0;
-
     return mat;
 }
 
@@ -387,9 +380,16 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     // Compute intersection point along the view ray.
     intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false);
 
-    // Add some lighting code here!
+    // Apply Phong model.
+    const vec3 lightDir = normalize( lamp_pos - p );
+    const float dotLight = dot( lightDir, n );
+    const vec3 viewDir = normalize( -rayDir );
+    const float specularArg = clamp( dot( viewDir, 2.0*dotLight*n - lightDir ), 0, 1 );
+    vec3 color = vec3(0);
+    color += mat.diffuse * dotLight;
+    color += mat.specular * pow( specularArg, mat.specularPower );
 
-    return mat.diffuse.rgb;
+    return color;
 }
 
 void main()
