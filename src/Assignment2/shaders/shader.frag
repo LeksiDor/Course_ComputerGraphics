@@ -15,6 +15,42 @@ layout(location = 0) out vec4 outColor;
 
 
 
+// Tampere University
+// COMP.CE.430 Computer Graphics Coding Assignment 2 (2021)
+//
+//   Oleksii Doronin, H272353
+//
+// Name of the functionality      |Done| Notes
+//-------------------------------------------------------------------------------
+// example functionality          | X | Example note: control this with var YYYY
+// Mandatory functionalities ----------------------------------------------------
+//   Perspective projection       | X |
+//   Phong shading                |   |
+//   Camera movement and rotation |   |
+//   Sharp shadows                |   |
+// Extra functionalities --------------------------------------------------------
+//   Tone mapping                 |   |
+//   PBR shading                  |   |
+//   Soft shadows                 |   |
+//   Sharp reflections            |   |
+//   Glossy reflections           |   |
+//   Refractions                  |   |
+//   Caustics                     |   |
+//   SDF Ambient Occlusions       |   |
+//   Texturing                    |   |
+//   Simple game                  |   |
+//   Progressive path tracing     |   |
+//   Basic post-processing        |   |
+//   Advanced post-processing     |   |
+//   Screen space reflections     |   |
+//   Screen space AO              |   |
+//   Simple own SDF               |   |
+//   Advanced own SDF             |   |
+//   Animated SDF                 |   |
+//   Other?                       |   |
+
+
+
 #define PI 3.14159265359
 #define EPSILON 0.00001
 
@@ -320,16 +356,17 @@ bool intersect(
  * Returns:
  *  Color of the pixel.
  */
-vec3 render(vec3 o, vec3 v)
+vec3 render( vec3 rayOri, vec3 rayDir )
 {
     // This lamp is positioned at the hole in the roof.
+    // Consider it as a point light.
     vec3 lamp_pos = vec3(0.0, 3.1, 3.0);
 
     vec3 p, n;
     material mat;
 
     // Compute intersection point along the view ray.
-    intersect(o, v, MAX_DIST, p, n, mat, false);
+    intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false);
 
     // Add some lighting code here!
 
@@ -338,17 +375,26 @@ vec3 render(vec3 o, vec3 v)
 
 void main()
 {
+    const bool isCameraPerspective = true;
+
     // This is the position of the pixel in normalized device coordinates.
     vec2 uv = (gl_FragCoord.xy/u_resolution)*2.0-1.0;
     uv.y = -uv.y;
     // Calculate aspect ratio
-    float aspect = u_resolution.x/u_resolution.y;
+    float aspect = u_resolution.x / u_resolution.y;
 
-    // Modify these two to create perspective projection!
-    // Origin of the view ray
-    vec3 o = vec3(2.96*vec2(uv.x * aspect, uv.y), -2.0);
-    // Direction of the view ray
-    vec3 v = vec3(0,0,1);
+    vec3 rayOri = vec3(0); // Ray origin.
+    vec3 rayDir = vec3(0); // Ray direction.
+    if ( isCameraPerspective )
+    {
+        rayOri = vec3( 0, 0, -2 );
+        rayDir = normalize( vec3( 2.96 * vec2( uv.x * aspect, uv.y ), 2 ) );
+    }
+    else
+    {
+        rayOri = vec3( 2.96 * vec2( uv.x * aspect, uv.y ), -2.0 );
+        rayDir = vec3( 0, 0, 1 );
+    }
 
-    outColor = vec4(render(o, v), 1.0);
+    outColor = vec4( render( rayOri, rayDir ), 1.0 );
 }
