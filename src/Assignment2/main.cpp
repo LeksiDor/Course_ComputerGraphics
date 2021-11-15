@@ -5,9 +5,6 @@
 #include <chrono>
 #include <iostream>
 
-#include "shaders/shaderdefs.h"
-
-
 // Assignment 2.
 
 
@@ -38,6 +35,14 @@ struct RenderEntry
 };
 
 
+struct UniformsStruct
+{
+    alignas(16) glm::vec2 resolution; // Resolution of the screen.
+    alignas(16) glm::vec2 mouse; // Mouse coordinates.
+    alignas(16) float time; // Time since startup, in seconds.
+};
+
+
 class AppExample : public svk::ApplicationBase
 {
 private:
@@ -55,11 +60,38 @@ public:
         return { { 0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, pos) } };
     }
 
+    virtual std::vector<VkDescriptorSetLayoutBinding> getDescriptorBindings() const override
+    {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.pImmutableSamplers = nullptr;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        return { uboLayoutBinding };
+    }
+
+    virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const override
+    {
+        std::vector<VkWriteDescriptorSet> descriptorWrites( 1 );
+
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = descriptorSet;
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &renderEntries[swapEntryIndex].bufferInfo;
+
+        return descriptorWrites;
+    }
+
     virtual void InitRenderEntries( const svk::SwapChainInfo& swapChainInfo ) override
     {
         ClearRenderEntries();
         renderEntries.resize( swapChainInfo.numEntries );
-        const VkDeviceSize bufferSize = sizeof( shader::UniformsStruct );
+        const VkDeviceSize bufferSize = sizeof( UniformsStruct );
         for ( int i = 0; i < swapChainInfo.numEntries; ++i )
         {
             auto& entry = renderEntries[i];
@@ -99,7 +131,7 @@ public:
         int width, height;
         glfwGetFramebufferSize( window, &width, &height );
 
-        shader::UniformsStruct uniforms{};
+        UniformsStruct uniforms{};
         uniforms.resolution = glm::vec2( width, height );
         uniforms.mouse = glm::vec2( xpos, ypos );
         uniforms.time = time;
