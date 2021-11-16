@@ -25,7 +25,7 @@ layout(location = 0) out vec4 outColor;
 // example functionality          | X | Example note: control this with var YYYY
 // Mandatory functionalities ----------------------------------------------------
 //   Perspective projection       | X | Check variable isCameraPerspective.
-//   Phong shading                | X | See function render().
+//   Phong shading                | X | See function PhongColor().
 //   Camera movement and rotation | X | Check variable isAnimateCamera.
 //   Sharp shadows                |   |
 // Extra functionalities --------------------------------------------------------
@@ -359,6 +359,18 @@ bool intersect(
     return hit;
 }
 
+vec3 PhongColor( const in vec3 position, const in vec3 norm, const in material mat, const in vec3 lightPos, const in vec3 rayDir )
+{
+    const vec3 lightDir = normalize( lightPos - position );
+    const float dotLight = dot( lightDir, norm );
+    const vec3 viewDir = normalize( -rayDir );
+    const float specularArg = clamp( dot( viewDir, 2.0 * dotLight * norm - lightDir ), 0, 1 );
+    vec3 color = vec3(0);
+    color += mat.diffuse * dotLight;
+    color += mat.specular * pow( specularArg, mat.specularPower );
+    return color;
+}
+
 /* Calculates the color of the pixel, based on view ray origin and direction.
  *
  * Parameters:
@@ -380,16 +392,7 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     // Compute intersection point along the view ray.
     intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false);
 
-    // Apply Phong model.
-    const vec3 lightDir = normalize( lamp_pos - p );
-    const float dotLight = dot( lightDir, n );
-    const vec3 viewDir = normalize( -rayDir );
-    const float specularArg = clamp( dot( viewDir, 2.0*dotLight*n - lightDir ), 0, 1 );
-    vec3 color = vec3(0);
-    color += mat.diffuse * dotLight;
-    color += mat.specular * pow( specularArg, mat.specularPower );
-
-    return color;
+    return PhongColor( p, n, mat, lamp_pos, rayDir );
 }
 
 
