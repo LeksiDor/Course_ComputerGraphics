@@ -6,10 +6,6 @@ layout(binding = 0) uniform UniformBufferObject {
     float time; // Time since startup, in seconds.
 } uniforms;
 
-vec2 u_resolution = uniforms.resolution;
-vec2 u_mouse = uniforms.mouse;
-float u_time = uniforms.time;
-
 
 layout(location = 0) out vec4 outColor;
 
@@ -178,7 +174,7 @@ vec3 rot_z(vec3 p, float a)
 
 float blob_distance(vec3 p)
 {
-    vec3 q = p - vec3(-0.5, -2.2 + abs(sin(u_time*3.0)), 2.0);
+    vec3 q = p - vec3( -0.5, -2.2 + abs( sin( uniforms.time * 3.0 ) ), 2.0 );
     return length(q) - 0.8 + sin(10.0*q.x)*sin(10.0*q.y)*sin(10.0*q.z)*0.07;
 }
 
@@ -230,14 +226,14 @@ material room_material(vec3 p)
 
 float crate_distance(vec3 p)
 {
-    return box(rot_y(p-vec3(-1,-1,5), u_time), vec3(1, 2, 1));
+    return box(rot_y(p-vec3(-1,-1,5), uniforms.time ), vec3(1, 2, 1));
 }
 
 material crate_material(vec3 p)
 {
     material mat;
     mat.diffuse = vec3( 1.0, 1.0, 1.0 );
-    vec3 q = rot_y(p-vec3(-1,-1,5), u_time) * 0.98;
+    vec3 q = rot_y( p-vec3(-1,-1,5), uniforms.time ) * 0.98;
     if ( fract( q.x + floor(q.y*2.0) * 0.5 + floor(q.z*2.0) * 0.5 ) < 0.5 )
     {
         mat.diffuse = vec3( 0.0, 1.0, 1.0 );
@@ -429,7 +425,7 @@ mat4 generateLookAtMatrix()
 
     if ( isAnimateCamera )
     {
-        const float arg = 2.0 * u_time;
+        const float arg = 2.0 * uniforms.time;
         eye.x = 2.0 * sin( arg );
         eye.y = cos( arg );
     }
@@ -443,10 +439,10 @@ void main()
     const bool isCameraPerspective = true;
 
     // This is the position of the pixel in normalized device coordinates.
-    vec2 uv = (gl_FragCoord.xy/u_resolution)*2.0-1.0;
+    vec2 uv = (gl_FragCoord.xy / uniforms.resolution) * 2.0 - 1.0;
     uv.y = -uv.y;
     // Calculate aspect ratio
-    float aspect = u_resolution.x / u_resolution.y;
+    const float aspect = uniforms.resolution.x / uniforms.resolution.y;
 
     vec3 rayOri = vec3(0); // Ray origin.
     vec3 rayDir = vec3(0); // Ray direction.
