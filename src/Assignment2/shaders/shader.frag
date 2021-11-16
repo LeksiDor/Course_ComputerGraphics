@@ -27,7 +27,7 @@ layout(location = 0) out vec4 outColor;
 //   Sharp shadows                | X | Check function render().
 // Extra functionalities --------------------------------------------------------
 //   Tone mapping                 | X | Check uniforms.gamma.
-//   PBR shading                  |   |
+//   PBR shading                  | X | See function BlinnPhongColor().
 //   Soft shadows                 |   |
 //   Sharp reflections            |   |
 //   Glossy reflections           |   |
@@ -361,11 +361,32 @@ vec3 PhongColor( const in vec3 position, const in vec3 norm, const in material m
     const vec3 lightDir = normalize( lightPos - position );
     const float dotLight = dot( lightDir, norm );
     const vec3 viewDir = normalize( -rayDir );
-    const float specularArg = clamp( dot( viewDir, 2.0 * dotLight * norm - lightDir ), 0, 1 );
+    const vec3 reflDir = 2.0*dotLight*norm - lightDir;
+    const float specularArg = clamp( dot( viewDir, reflDir ), 0, 1 );
     vec3 color = vec3(0);
     color += mat.diffuse * dotLight;
     color += mat.specular * pow( specularArg, mat.specularPower );
     return color;
+}
+
+vec3 BlinnPhongColor( const in vec3 position, const in vec3 norm, const in material mat, const in vec3 lightPos, const in vec3 rayDir )
+{
+    const vec3 lightDir = normalize( lightPos - position );
+    const float dotLight = dot( lightDir, norm );
+    const vec3 viewDir = normalize( -rayDir );
+    const vec3 halfViewLightDir = normalize( lightDir + viewDir );
+    const vec3 reflDir = 2.0 * dotLight * norm - lightDir;
+    const float specularArg = clamp( dot( norm, halfViewLightDir ), 0, 1 );
+    vec3 color = vec3( 0 );
+    color += mat.diffuse * dotLight;
+    color += mat.specular * pow( specularArg, mat.specularPower );
+    return color;
+}
+
+vec3 GetSurfaceColor( const in vec3 position, const in vec3 norm, const in material mat, const in vec3 lightPos, const in vec3 rayDir )
+{
+    //return PhongColor( position, norm, mat, lightPos, rayDir );
+    return BlinnPhongColor( position, norm, mat, lightPos, rayDir );
 }
 
 /* Calculates the color of the pixel, based on view ray origin and direction.
@@ -388,7 +409,7 @@ vec3 render( vec3 rayOri, vec3 rayDir )
 
     // Compute intersection point along the view ray.
     intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false);
-    vec3 color = PhongColor( p, n, mat, lamp_pos, rayDir );
+    vec3 color = GetSurfaceColor( p, n, mat, lamp_pos, rayDir );
 
     // Check if position is shadowed.
     const float distToLight = length( lamp_pos - p );
