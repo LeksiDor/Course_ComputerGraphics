@@ -24,9 +24,9 @@ layout(location = 0) out vec4 outColor;
 //-------------------------------------------------------------------------------
 // example functionality          | X | Example note: control this with var YYYY
 // Mandatory functionalities ----------------------------------------------------
-//   Perspective projection       | X |
-//   Phong shading                | X |
-//   Camera movement and rotation |   |
+//   Perspective projection       | X | Check variable isCameraPerspective.
+//   Phong shading                | X | See function render().
+//   Camera movement and rotation | X | Check variable isAnimateCamera.
 //   Sharp shadows                |   |
 // Extra functionalities --------------------------------------------------------
 //   Tone mapping                 |   |
@@ -410,9 +410,19 @@ mat4 lookAtMatrix( const vec3 eye, const vec3 target, const vec3 up0 )
 
 mat4 generateLookAtMatrix()
 {
-    const vec3 up = vec3( 0, 1, 0 );
-    const vec3 eye = vec3( 0, 0, -2 );
-    const vec3 target = vec3( 0, 0, 0 );
+    const bool isAnimateCamera = true;
+
+    vec3 up = vec3( 0, 1, 0 );
+    vec3 eye = vec3( 0, 0, -2 );
+    vec3 target = vec3( 0, 0, 2 );
+
+    if ( isAnimateCamera )
+    {
+        const float arg = 2.0 * u_time;
+        eye.x = 2.0 * sin( arg );
+        eye.y = cos( arg );
+    }
+
     return lookAtMatrix( eye, target, up );
 }
 
