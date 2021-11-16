@@ -392,6 +392,31 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     return color;
 }
 
+
+mat4 lookAtMatrix( const vec3 eye, const vec3 target, const vec3 up0 )
+{
+    const vec3 forward = normalize( target - eye );
+    const vec3 right = normalize( cross( up0, forward ) );
+    const vec3 up = normalize( cross( forward, right ) );
+
+    return mat4(
+        right, 0,
+        up, 0,
+        forward, 0,
+        eye, 1
+    );
+}
+
+
+mat4 generateLookAtMatrix()
+{
+    const vec3 up = vec3( 0, 1, 0 );
+    const vec3 eye = vec3( 0, 0, -2 );
+    const vec3 target = vec3( 0, 0, 0 );
+    return lookAtMatrix( eye, target, up );
+}
+
+
 void main()
 {
     const bool isCameraPerspective = true;
@@ -406,8 +431,10 @@ void main()
     vec3 rayDir = vec3(0); // Ray direction.
     if ( isCameraPerspective )
     {
-        rayOri = vec3( 0, 0, -2 );
-        rayDir = normalize( vec3( 2.96 * vec2( uv.x * aspect, uv.y ), 2 ) );
+        const mat4 lookAt = generateLookAtMatrix();
+        rayOri = ( lookAt * vec4(0,0,0,1) ).xyz;
+        rayDir = ( lookAt * vec4( uv.x*aspect, uv.y, 1.0, 1.0 ) ).xyz - rayOri;
+        rayDir = normalize( rayDir );
     }
     else
     {
