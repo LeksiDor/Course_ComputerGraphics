@@ -40,6 +40,7 @@ struct UniformsStruct
     glm::vec2 resolution; // Resolution of the screen.
     glm::vec2 mouse; // Mouse coordinates.
     float time; // Time since startup, in seconds.
+    float gamma; // Gamma correction parameter.
 };
 
 
@@ -135,6 +136,7 @@ public:
         uniforms.resolution = glm::vec2( width, height );
         uniforms.mouse = glm::vec2( xpos, ypos );
         uniforms.time = time;
+        uniforms.gamma = 2.2f;
 
         void* data;
         vkMapMemory( device, entry.uniformBufferMemory, 0, sizeof( uniforms ), 0, &data );

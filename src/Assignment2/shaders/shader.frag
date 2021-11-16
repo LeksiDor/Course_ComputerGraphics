@@ -4,6 +4,7 @@ layout(binding = 0) uniform UniformBufferObject {
     vec2 resolution; // Resolution of the screen.
     vec2 mouse; // Mouse coordinates.
     float time; // Time since startup, in seconds.
+    float gamma; // Gamma correction parameter.
 } uniforms;
 
 
@@ -25,7 +26,7 @@ layout(location = 0) out vec4 outColor;
 //   Camera movement and rotation | X | Check variable isAnimateCamera.
 //   Sharp shadows                | X | Check function render().
 // Extra functionalities --------------------------------------------------------
-//   Tone mapping                 |   |
+//   Tone mapping                 | X | Check uniforms.gamma.
 //   PBR shading                  |   |
 //   Soft shadows                 |   |
 //   Sharp reflections            |   |
@@ -395,6 +396,9 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     const bool isSharpShadow = intersect( p + EPSILON*dirToLight, dirToLight-EPSILON, distToLight, p, n, mat, false );
     if ( isSharpShadow )
         color *= 0.2;
+
+    // Gamma correction (a.k.a. tone mapping, in simplest form).
+    color = pow( color, vec3(uniforms.gamma) );
 
     return color;
 }
