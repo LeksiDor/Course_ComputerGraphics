@@ -41,6 +41,7 @@ struct UniformsStruct
     glm::vec2 mouse; // Mouse coordinates.
     float time; // Time since startup, in seconds.
     float gamma; // Gamma correction parameter.
+    int shadow; // 0 = none, 1 = sharp, 2 = soft.
 };
 
 
@@ -137,6 +138,7 @@ public:
         uniforms.mouse = glm::vec2( xpos, ypos );
         uniforms.time = time;
         uniforms.gamma = 2.2f;
+        uniforms.shadow = 2;
 
         void* data;
         vkMapMemory( device, entry.uniformBufferMemory, 0, sizeof( uniforms ), 0, &data );

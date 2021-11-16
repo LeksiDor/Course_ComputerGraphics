@@ -5,6 +5,7 @@ layout(binding = 0) uniform UniformBufferObject {
     vec2 mouse; // Mouse coordinates.
     float time; // Time since startup, in seconds.
     float gamma; // Gamma correction parameter.
+    int shadow; // 0 = none, 1 = sharp, 2 = soft.
 } uniforms;
 
 
@@ -24,11 +25,11 @@ layout(location = 0) out vec4 outColor;
 //   Perspective projection       | X | Check variable isCameraPerspective.
 //   Phong shading                | X | See function PhongColor().
 //   Camera movement and rotation | X | Check variable isAnimateCamera.
-//   Sharp shadows                | X | Check function render().
+//   Sharp shadows                | X | Check uniforms.shadow.
 // Extra functionalities --------------------------------------------------------
 //   Tone mapping                 | X | Check uniforms.gamma.
 //   PBR shading                  | X | See function BlinnPhongColor().
-//   Soft shadows                 |   |
+//   Soft shadows                 | X | Check uniforms.shadow.
 //   Sharp reflections            |   |
 //   Glossy reflections           |   |
 //   Refractions                  |   |
@@ -406,6 +407,7 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     const float lamp_delta_dist = 0.1; // distance to discard when tracing shadow rays.
 
     vec3 p, n;
+    vec3 p_shadow, n_shadow;
     material mat;
 
     // Compute intersection point along the view ray.
@@ -415,9 +417,53 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     // Check if position is shadowed.
     const float distToLight = length( lamp_pos - p );
     const vec3 dirToLight = ( lamp_pos - p ) / distToLight;
-    const bool isSharpShadow = intersect( p + EPSILON*dirToLight, dirToLight-2.0*EPSILON-lamp_delta_dist, distToLight, p, n, mat, false );
-    if ( isSharpShadow )
-        color *= 0.2;
+
+    float shadowing = 1.0;
+    if ( uniforms.shadow == 0 )
+    {
+        // No shadow.
+        shadowing = 1.0;
+    }
+    else if ( uniforms.shadow == 1 )
+    {
+        // Sharp shadow.
+        if ( intersect( p + EPSILON * dirToLight, dirToLight - 2.0 * EPSILON - lamp_delta_dist, distToLight, p_shadow, n_shadow, mat, false ) )
+            shadowing = 0.2;
+        else
+            shadowing = 1.0;
+    }
+    else if ( uniforms.shadow == 2 )
+    {
+        // Soft shadow.
+        const vec3 light_area_radius = vec3( 0.5, 0.0, 0.5 );
+        const int num_light_samples = 64;
+
+        const float sqrt_num_light_samples = sqrt( num_light_samples );
+        shadowing = 0.0;
+        for ( int ix = 0; ix < sqrt_num_light_samples; ++ix )
+        {
+            for ( int iy = 0; iy < sqrt_num_light_samples; ++iy )
+            {
+                vec3 lambda = (vec3(ix,0,iy) + vec3(0.5)) / vec3( sqrt_num_light_samples );
+                lambda = 2.0*lambda - vec3(1);
+                const vec3 lightPos = lamp_pos + lambda * light_area_radius;
+                const float distToLight = length( lightPos - p );
+                const vec3 dirToLight = (lightPos - p) / distToLight;
+                if ( intersect( p + EPSILON * dirToLight, dirToLight - 2.0 * EPSILON - lamp_delta_dist, distToLight, p_shadow, n_shadow, mat, false ) )
+                    shadowing += 0.2;
+                else
+                    shadowing += 1.0;
+            }
+        }
+        shadowing /= float( sqrt_num_light_samples * sqrt_num_light_samples );
+    }
+    else
+    {
+        // Wrong value.
+        shadowing = 0.5;
+    }
+
+    color *= shadowing;
 
     // Gamma correction (a.k.a. tone mapping, in simplest form).
     color = pow( color, vec3(uniforms.gamma) );
