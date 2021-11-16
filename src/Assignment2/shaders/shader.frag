@@ -27,7 +27,7 @@ layout(location = 0) out vec4 outColor;
 //   Perspective projection       | X | Check variable isCameraPerspective.
 //   Phong shading                | X | See function PhongColor().
 //   Camera movement and rotation | X | Check variable isAnimateCamera.
-//   Sharp shadows                |   |
+//   Sharp shadows                | X | Check function render().
 // Extra functionalities --------------------------------------------------------
 //   Tone mapping                 |   |
 //   PBR shading                  |   |
@@ -391,8 +391,16 @@ vec3 render( vec3 rayOri, vec3 rayDir )
 
     // Compute intersection point along the view ray.
     intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false);
+    vec3 color = PhongColor( p, n, mat, lamp_pos, rayDir );
 
-    return PhongColor( p, n, mat, lamp_pos, rayDir );
+    // Check if position is shadowed.
+    const float distToLight = length( lamp_pos - p );
+    const vec3 dirToLight = ( lamp_pos - p ) / distToLight;
+    const bool isSharpShadow = intersect( p + EPSILON*dirToLight, dirToLight-EPSILON, distToLight, p, n, mat, false );
+    if ( isSharpShadow )
+        color *= 0.2;
+
+    return color;
 }
 
 
