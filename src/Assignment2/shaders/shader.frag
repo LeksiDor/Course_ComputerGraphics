@@ -402,7 +402,8 @@ vec3 render( vec3 rayOri, vec3 rayDir )
 {
     // This lamp is positioned at the hole in the roof.
     // Consider it as a point light.
-    vec3 lamp_pos = vec3(0.0, 3.1, 3.0);
+    const vec3 lamp_pos = vec3(0.0, 3.1, 3.0);
+    const float lamp_delta_dist = 0.1; // distance to discard when tracing shadow rays.
 
     vec3 p, n;
     material mat;
@@ -414,7 +415,7 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     // Check if position is shadowed.
     const float distToLight = length( lamp_pos - p );
     const vec3 dirToLight = ( lamp_pos - p ) / distToLight;
-    const bool isSharpShadow = intersect( p + EPSILON*dirToLight, dirToLight-EPSILON, distToLight, p, n, mat, false );
+    const bool isSharpShadow = intersect( p + EPSILON*dirToLight, dirToLight-2.0*EPSILON-lamp_delta_dist, distToLight, p, n, mat, false );
     if ( isSharpShadow )
         color *= 0.2;
 
