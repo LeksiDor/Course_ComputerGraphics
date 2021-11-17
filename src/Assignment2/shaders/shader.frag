@@ -190,7 +190,14 @@ void check_blob( const vec3 p, inout float min_dist, inout material mat )
 {
     const vec3 center = vec3( -0.5, -2.2 + abs( sin( uniforms.time * 3.0 ) ), 2.0 );
     const vec3 p_loc = p - center;
-    const float radius = 0.8 + sin(10.0*p_loc.x) * sin(10.0*p_loc.y) * sin(10.0*p_loc.z) * 0.07;
+    // Get spherical coordinates.
+    const float rho = length( p_loc );
+    const float h = p_loc.y / rho;
+    const float theta = asin(h);
+    const float phi = atan(p_loc.z/p_loc.x) + ( (p_loc.x < 0) ? PI : 0.0);
+
+    float variation = sin(10.0*theta) * (1.0-pow(h,4)) * sin(10.0*phi);
+    const float radius = 0.8 + variation * 0.07;
 
     const float dist = length(p_loc) - radius;
     if ( dist < min_dist )
