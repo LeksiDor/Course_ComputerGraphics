@@ -45,7 +45,7 @@ layout(location = 0) out vec4 outColor;
 //   Screen space AO              |   |
 //   Simple own SDF               | X | Check function check_refractor.
 //   Advanced own SDF             |   |
-//   Animated SDF                 |   |
+//   Animated SDF                 | X | Check function check_blob.
 //   Other?                       |   |
 
 
@@ -196,8 +196,9 @@ void check_blob( const vec3 p, inout float min_dist, inout material mat )
     const float theta = asin(h);
     const float phi = atan(p_loc.z/p_loc.x) + ( (p_loc.x < 0) ? PI : 0.0);
 
-    float variation = sin(10.0*theta) * (1.0-pow(h,4)) * sin(10.0*phi);
-    const float radius = 0.8 + variation * 0.07;
+    const float t = 2.0 * uniforms.time;
+    float variation = sin(10.0*theta + 5.0*t) * (1.0-pow(h,4)) * sin(10.0*phi);
+    const float radius = 0.8 + variation * sin(t) * 0.07;
 
     const float dist = length(p_loc) - radius;
     if ( dist < min_dist )
