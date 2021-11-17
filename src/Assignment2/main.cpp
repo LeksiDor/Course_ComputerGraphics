@@ -37,6 +37,7 @@ struct RenderEntry
 
 struct UniformsStruct
 {
+    glm::mat4 lookAt; // LookAt matrix.
     glm::vec2 resolution; // Resolution of the screen.
     glm::vec2 mouse; // Mouse coordinates.
     float time; // Time since startup, in seconds.
@@ -133,12 +134,32 @@ public:
         int width, height;
         glfwGetFramebufferSize( window, &width, &height );
 
+        // Camera matrix.
+        const bool isAnimateCamera = true;
+        glm::vec3 up0 = glm::vec3( 0, 1, 0 );
+        glm::vec3 eye = glm::vec3( 0, 0, -2 );
+        glm::vec3 target = glm::vec3( 0, 0, 2 );
+        if ( isAnimateCamera )
+        {
+            const float arg = 2.0f * time;
+            eye.x = 2.0f * std::sin( arg );
+            eye.y = std::cos( arg );
+        }
+        const glm::vec3 forward = glm::normalize( target - eye );
+        const glm::vec3 right = glm::normalize( glm::cross( up0, forward ) );
+        const glm::vec3 up = glm::normalize( glm::cross( forward, right ) );
+
         UniformsStruct uniforms{};
         uniforms.resolution = glm::vec2( width, height );
         uniforms.mouse = glm::vec2( xpos, ypos );
         uniforms.time = time;
         uniforms.gamma = 2.2f;
         uniforms.shadow = 2;
+        uniforms.lookAt = glm::mat4(
+            glm::vec4( right, 0.0f ),
+            glm::vec4( up, 0.0f ),
+            glm::vec4( forward, 0.0f ),
+            glm::vec4( eye, 1.0f ) );
 
         void* data;
         vkMapMemory( device, entry.uniformBufferMemory, 0, sizeof( uniforms ), 0, &data );

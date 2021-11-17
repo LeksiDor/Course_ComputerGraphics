@@ -1,6 +1,7 @@
 #version 450
 
 layout(binding = 0) uniform UniformBufferObject {
+    mat4 lookAt; // LookAt matrix.
     vec2 resolution; // Resolution of the screen.
     vec2 mouse; // Mouse coordinates.
     float time; // Time since startup, in seconds.
@@ -24,7 +25,7 @@ layout(location = 0) out vec4 outColor;
 // Mandatory functionalities ----------------------------------------------------
 //   Perspective projection       | X | Check variable isCameraPerspective.
 //   Phong shading                | X | See function PhongColor().
-//   Camera movement and rotation | X | Check variable isAnimateCamera.
+//   Camera movement and rotation | X | Check how uniforms.lookAt is set in main.cpp.
 //   Sharp shadows                | X | Check uniforms.shadow.
 // Extra functionalities --------------------------------------------------------
 //   Tone mapping                 | X | Check uniforms.gamma.
@@ -472,40 +473,6 @@ vec3 render( vec3 rayOri, vec3 rayDir )
 }
 
 
-mat4 lookAtMatrix( const vec3 eye, const vec3 target, const vec3 up0 )
-{
-    const vec3 forward = normalize( target - eye );
-    const vec3 right = normalize( cross( up0, forward ) );
-    const vec3 up = normalize( cross( forward, right ) );
-
-    return mat4(
-        right, 0,
-        up, 0,
-        forward, 0,
-        eye, 1
-    );
-}
-
-
-mat4 generateLookAtMatrix()
-{
-    const bool isAnimateCamera = true;
-
-    vec3 up = vec3( 0, 1, 0 );
-    vec3 eye = vec3( 0, 0, -2 );
-    vec3 target = vec3( 0, 0, 2 );
-
-    if ( isAnimateCamera )
-    {
-        const float arg = 2.0 * uniforms.time;
-        eye.x = 2.0 * sin( arg );
-        eye.y = cos( arg );
-    }
-
-    return lookAtMatrix( eye, target, up );
-}
-
-
 void main()
 {
     const bool isCameraPerspective = true;
@@ -516,20 +483,9 @@ void main()
     // Calculate aspect ratio
     const float aspect = uniforms.resolution.x / uniforms.resolution.y;
 
-    vec3 rayOri = vec3(0); // Ray origin.
-    vec3 rayDir = vec3(0); // Ray direction.
-    if ( isCameraPerspective )
-    {
-        const mat4 lookAt = generateLookAtMatrix();
-        rayOri = ( lookAt * vec4(0,0,0,1) ).xyz;
-        rayDir = ( lookAt * vec4( uv.x*aspect, uv.y, 1.0, 1.0 ) ).xyz - rayOri;
-        rayDir = normalize( rayDir );
-    }
-    else
-    {
-        rayOri = vec3( 2.96 * vec2( uv.x * aspect, uv.y ), -2.0 );
-        rayDir = vec3( 0, 0, 1 );
-    }
+    const vec3 rayOri    = ( uniforms.lookAt * vec4( 0, 0, 0, 1 ) ).xyz;
+    const vec3 rayTarget = ( uniforms.lookAt * vec4( uv.x * aspect, uv.y, 1.0, 1.0 ) ).xyz;
+    const vec3 rayDir    = normalize( rayTarget - rayOri );
 
     outColor = vec4( render( rayOri, rayDir ), 1.0 );
 }
