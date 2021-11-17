@@ -43,7 +43,7 @@ layout(location = 0) out vec4 outColor;
 //   Advanced post-processing     |   |
 //   Screen space reflections     |   |
 //   Screen space AO              |   |
-//   Simple own SDF               |   |
+//   Simple own SDF               | X | Check function check_refractor.
 //   Advanced own SDF             |   |
 //   Animated SDF                 |   |
 //   Other?                       |   |
@@ -98,7 +98,7 @@ const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0
 // Consider it as a point light.
 const vec3 lamp_pos = vec3( 0.0, 3.1, 3.0 );
 const float lamp_delta_dist = 0.1; // distance to discard when tracing shadow rays.
-const vec3 light_area_radius = vec3( 0.5, 0.0, 0.5 );
+const vec3 light_area_radius = vec3( 0.5, 0.5, 0.5 );
 const int num_light_samples = 64;
 
 
@@ -185,42 +185,58 @@ vec3 rot_z(vec3 p, float a)
  * the material function determines the surface material at a point.
  */
 
-float blob_distance(vec3 p)
-{
-    vec3 q = p - vec3( -0.5, -2.2 + abs( sin( uniforms.time * 3.0 ) ), 2.0 );
-    return length(q) - 0.8 + sin(10.0*q.x)*sin(10.0*q.y)*sin(10.0*q.z)*0.07;
-}
 
-material blob_material(vec3 p)
+void check_blob( const vec3 p, inout float min_dist, inout material mat )
 {
-    material mat = material_default;
+    const vec3 center = vec3( -0.5, -2.2 + abs( sin( uniforms.time * 3.0 ) ), 2.0 );
+    const vec3 p_loc = p - center;
+    const float radius = 0.8 + sin(10.0*p_loc.x) * sin(10.0*p_loc.y) * sin(10.0*p_loc.z) * 0.07;
+
+    const float dist = length(p_loc) - radius;
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
     mat.diffuse = mat.specular = vec3( 1.0, 0.5, 0.3 );
-    return mat;
 }
 
-float sphere_distance(vec3 p)
-{
-    return length(p - vec3(1.5, -1.8, 4.0)) - 1.2;
-}
 
-material sphere_material(vec3 p)
+void check_sphere( const vec3 p, inout float min_dist, inout material mat )
 {
-    material mat;
+    const vec3 center = vec3( 1.5, -1.8, 4.0 );
+    const float radius = 1.2;
+
+    vec3 p_loc = p - center;
+
+    const float dist = length(p_loc) - radius;
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
     mat.diffuse = mat.specular = vec3( 0.1, 0.2, 0.0 );
-    return mat;
 }
 
-float room_distance(vec3 p)
+
+void check_room( const vec3 p, inout float min_dist, inout material mat )
 {
-    return max(
-        -box(p-vec3(0.0,3.0,3.0), vec3(0.5, 0.5, 0.5)),
-        -box(p-vec3(0.0,0.0,0.0), vec3(3.0, 3.0, 6.0))
+    const vec3 dimensions = vec3( 3.0, 3.0, 6.0 );
+    const vec3 center = vec3( 0.0, 0.0, 0.0 );
+
+    const float dist = max(
+        -box( p - (lamp_pos-vec3(0,lamp_delta_dist,0)), light_area_radius ),
+        -box( p - center, dimensions )
     );
-}
 
-material room_material(vec3 p)
-{
-    material mat;
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
     if ( p.x <= -2.98 )
     {
         mat.diffuse = vec3( 1.0, 0.0, 0.0 );
@@ -234,46 +250,51 @@ material room_material(vec3 p)
         mat.diffuse = vec3( 1.0, 1.0, 1.0 );
     }
     mat.specular = mat.diffuse;
-    return mat;
 }
 
-float crate_distance(vec3 p)
-{
-    return box(rot_y(p-vec3(-1,-1,5), uniforms.time ), vec3(1, 2, 1));
-}
 
-material crate_material(vec3 p)
+void check_crate( const vec3 p, inout float min_dist, inout material mat )
 {
-    material mat;
-    mat.diffuse = vec3( 1.0, 1.0, 1.0 );
-    vec3 q = rot_y( p-vec3(-1,-1,5), uniforms.time ) * 0.98;
-    if ( fract( q.x + floor(q.y*2.0) * 0.5 + floor(q.z*2.0) * 0.5 ) < 0.5 )
-    {
+    const vec3 center = vec3( -1, -1, 5 );
+    const vec3 size = vec3( 1, 2, 1 );
+
+    const vec3 p_loc = rot_y( p - center, uniforms.time );
+
+    const float dist = box( p_loc, size );
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
+    if ( fract( p_loc.x + floor( p_loc.y * 2.0 ) * 0.5 + floor( p_loc.z * 2.0 ) * 0.5 ) < 0.5 )
         mat.diffuse = vec3( 0.0, 1.0, 1.0 );
-    }
-    mat.specular = mat.diffuse;
-    return mat;
+    else
+        mat.diffuse = vec3( 1.0, 1.0, 1.0 );
+    mat.specular = vec3( 0.2, 0.2, 0.7 );
 }
 
 
-float reflector_distance( vec3 p )
+void check_reflector( const vec3 p, inout float min_dist, inout material mat )
 {
     const vec3 center = vec3( -2, -2, 2.5 );
     const vec3 size = vec3( 0.5, 0.8, 0.5 );
-    p = p - center;
-    p = rot_x( p, -0.1*PI );
-    p = rot_y( p, -0.1*PI );
-    p = rot_z( p, -0.1*PI );
-    p = rot_y( p, -uniforms.time );
-    return box( p, size );
-}
 
-material reflector_material( vec3 p )
-{
-    material mat = material_default;
+    vec3 p_loc = p - center;
+    p_loc = rot_x( p_loc, -0.1 * PI );
+    p_loc = rot_y( p_loc, -0.1 * PI );
+    p_loc = rot_z( p_loc, -0.1 * PI );
+    p_loc = rot_y( p_loc, -uniforms.time );
+
+    const float dist = box( p_loc, size );
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
     mat.diffuse = mat.specular = vec3( 0.2, 0.2, 0.7 );
     mat.reflectivity = 0.7;
-    return mat;
 }
 
 
@@ -291,39 +312,14 @@ float map(
     out material mat
 ){
     float min_dist = MAX_DIST*2.0;
-    float dist = 0.0;
 
-    dist = blob_distance(p);
-    if(dist < min_dist) {
-        mat = blob_material(p);
-        min_dist = dist;
-    }
-
-    dist = room_distance(p);
-    if(dist < min_dist) {
-        mat = room_material(p);
-        min_dist = dist;
-    }
-
-    dist = crate_distance(p);
-    if(dist < min_dist) {
-        mat = crate_material(p);
-        min_dist = dist;
-    }
-
-    dist = sphere_distance(p);
-    if(dist < min_dist) {
-        mat = sphere_material(p);
-        min_dist = dist;
-    }
+    check_blob( p, min_dist, mat );
+    check_room( p, min_dist, mat );
+    check_crate( p, min_dist, mat );
+    check_sphere( p, min_dist, mat );
 
     // Add your own objects here!
-    dist = reflector_distance(p);
-    if ( dist < min_dist )
-    {
-        mat = reflector_material( p );
-        min_dist = dist;
-    }
+    check_reflector( p, min_dist, mat );
 
     return min_dist;
 }
