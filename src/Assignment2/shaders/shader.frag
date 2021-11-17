@@ -31,7 +31,7 @@ layout(location = 0) out vec4 outColor;
 //   Tone mapping                 | X | Check uniforms.gamma.
 //   PBR shading                  | X | See function BlinnPhongColor().
 //   Soft shadows                 | X | Check uniforms.shadow.
-//   Sharp reflections            |   |
+//   Sharp reflections            | X | Check material parameter reflectivity.
 //   Glossy reflections           |   |
 //   Refractions                  |   |
 //   Caustics                     |   |
@@ -88,9 +88,19 @@ struct material
     vec3 diffuse;
     vec3 specular;
     float specularPower;
+    float reflectivity; // 0 for no reflection, 1 for full reflection.
+    float reflectionGlossiness; // Exponential distribution parameter. Values from [0,Inf).
 };
 
-const material material_default = material( vec3(0.8), vec3(0.8), 20.0 );
+const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0 );
+
+// This lamp is positioned at the hole in the roof.
+// Consider it as a point light.
+const vec3 lamp_pos = vec3( 0.0, 3.1, 3.0 );
+const float lamp_delta_dist = 0.1; // distance to discard when tracing shadow rays.
+const vec3 light_area_radius = vec3( 0.5, 0.0, 0.5 );
+const int num_light_samples = 64;
+
 
 // Good resource for finding more building blocks for distance functions:
 // https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
@@ -245,6 +255,28 @@ material crate_material(vec3 p)
     return mat;
 }
 
+
+float reflector_distance( vec3 p )
+{
+    const vec3 center = vec3( -2, -2, 2.5 );
+    const vec3 size = vec3( 0.5, 0.8, 0.5 );
+    p = p - center;
+    p = rot_x( p, -0.1*PI );
+    p = rot_y( p, -0.1*PI );
+    p = rot_z( p, -0.1*PI );
+    p = rot_y( p, -uniforms.time );
+    return box( p, size );
+}
+
+material reflector_material( vec3 p )
+{
+    material mat = material_default;
+    mat.diffuse = mat.specular = vec3( 0.2, 0.2, 0.7 );
+    mat.reflectivity = 0.7;
+    return mat;
+}
+
+
 /* The distance function collecting all others.
  *
  * Parameters:
@@ -286,6 +318,12 @@ float map(
     }
 
     // Add your own objects here!
+    dist = reflector_distance(p);
+    if ( dist < min_dist )
+    {
+        mat = reflector_material( p );
+        min_dist = dist;
+    }
 
     return min_dist;
 }
@@ -358,14 +396,67 @@ bool intersect(
     return hit;
 }
 
+
+float GetShadowing( const in vec3 position )
+{
+    // Dummy parameters.
+    vec3 p_dummy, n_dummy;
+    material mat;
+
+    if ( uniforms.shadow == 0 )
+    {
+        // No shadow.
+        return 1.0;
+    }
+    else if ( uniforms.shadow == 1 )
+    {
+        // Sharp shadow.
+        const float distToLight = length( lamp_pos - position );
+        const vec3 dirToLight = (lamp_pos - position) / distToLight;
+        if ( intersect( position + EPSILON*dirToLight, dirToLight - 2.0*EPSILON - lamp_delta_dist, distToLight, p_dummy, n_dummy, mat, false ) )
+            return 0.2;
+        else
+            return 1.0;
+    }
+    else if ( uniforms.shadow == 2 )
+    {
+        // Soft shadow.
+        const float sqrt_num_light_samples = sqrt( num_light_samples );
+        float shadowing = 0.0;
+        for ( int ix = 0; ix < sqrt_num_light_samples; ++ix )
+        {
+            for ( int iy = 0; iy < sqrt_num_light_samples; ++iy )
+            {
+                vec3 lambda = ( vec3(ix,0,iy) + vec3(0.5) ) / vec3( sqrt_num_light_samples );
+                lambda = 2.0*lambda - vec3(1);
+                const vec3 lightPos = lamp_pos + lambda*light_area_radius;
+                const float distToLight = length( lightPos - position );
+                const vec3 dirToLight = (lightPos - position) / distToLight;
+                if ( intersect( position + EPSILON*dirToLight, dirToLight - 2.0*EPSILON - lamp_delta_dist, distToLight, p_dummy, n_dummy, mat, false ) )
+                    shadowing += 0.2;
+                else
+                    shadowing += 1.0;
+            }
+        }
+        shadowing /= float( sqrt_num_light_samples * sqrt_num_light_samples );
+        return shadowing;
+    }
+    else
+    {
+        // Wrong value.
+        return 0.5;
+    }
+}
+
+
 vec3 PhongColor( const in vec3 position, const in vec3 norm, const in material mat, const in vec3 lightPos, const in vec3 rayDir )
 {
     const vec3 lightDir = normalize( lightPos - position );
     const float dotLight = dot( lightDir, norm );
     const vec3 viewDir = normalize( -rayDir );
-    const vec3 reflDir = 2.0*dotLight*norm - lightDir;
+    const vec3 reflDir = 2.0 * dotLight * norm - lightDir;
     const float specularArg = clamp( dot( viewDir, reflDir ), 0, 1 );
-    vec3 color = vec3(0);
+    vec3 color = vec3( 0 );
     color += mat.diffuse * dotLight;
     color += mat.specular * pow( specularArg, mat.specularPower );
     return color;
@@ -385,11 +476,15 @@ vec3 BlinnPhongColor( const in vec3 position, const in vec3 norm, const in mater
     return color;
 }
 
-vec3 GetSurfaceColor( const in vec3 position, const in vec3 norm, const in material mat, const in vec3 lightPos, const in vec3 rayDir )
+
+vec3 GetSurfaceColor( const in vec3 position, const in vec3 norm, const in material mat, const in vec3 rayDir )
 {
-    //return PhongColor( position, norm, mat, lightPos, rayDir );
-    return BlinnPhongColor( position, norm, mat, lightPos, rayDir );
+    //const vec3 color_base = PhongColor( position, norm, mat, lamp_pos, rayDir );
+    const vec3 color_base = BlinnPhongColor( position, norm, mat, lamp_pos, rayDir );
+    const float shadowing = GetShadowing( position );
+    return shadowing * color_base;
 }
+
 
 /* Calculates the color of the pixel, based on view ray origin and direction.
  *
@@ -402,69 +497,31 @@ vec3 GetSurfaceColor( const in vec3 position, const in vec3 norm, const in mater
  */
 vec3 render( vec3 rayOri, vec3 rayDir )
 {
-    // This lamp is positioned at the hole in the roof.
-    // Consider it as a point light.
-    const vec3 lamp_pos = vec3(0.0, 3.1, 3.0);
-    const float lamp_delta_dist = 0.1; // distance to discard when tracing shadow rays.
-
-    vec3 p, n;
-    vec3 p_shadow, n_shadow;
     material mat;
 
+    vec3 color = vec3(0);
+
     // Compute intersection point along the view ray.
-    intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false);
-    vec3 color = GetSurfaceColor( p, n, mat, lamp_pos, rayDir );
-
-    // Check if position is shadowed.
-    const float distToLight = length( lamp_pos - p );
-    const vec3 dirToLight = ( lamp_pos - p ) / distToLight;
-
-    float shadowing = 1.0;
-    if ( uniforms.shadow == 0 )
+    vec3 p, n;
+    if ( intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false ) )
     {
-        // No shadow.
-        shadowing = 1.0;
-    }
-    else if ( uniforms.shadow == 1 )
-    {
-        // Sharp shadow.
-        if ( intersect( p + EPSILON * dirToLight, dirToLight - 2.0 * EPSILON - lamp_delta_dist, distToLight, p_shadow, n_shadow, mat, false ) )
-            shadowing = 0.2;
-        else
-            shadowing = 1.0;
-    }
-    else if ( uniforms.shadow == 2 )
-    {
-        // Soft shadow.
-        const vec3 light_area_radius = vec3( 0.5, 0.0, 0.5 );
-        const int num_light_samples = 64;
+        const vec3 color_base = GetSurfaceColor( p, n, mat, rayDir );
 
-        const float sqrt_num_light_samples = sqrt( num_light_samples );
-        shadowing = 0.0;
-        for ( int ix = 0; ix < sqrt_num_light_samples; ++ix )
+        vec3 color_refl = vec3(0);
+        if ( mat.reflectivity > 0 )
         {
-            for ( int iy = 0; iy < sqrt_num_light_samples; ++iy )
+            color *= (1.0 - mat.reflectivity);
+            vec3 p_refl, n_refl;
+            material mat_refl;
+            const vec3 rayDir_refl = normalize( rayDir + 2.0*n );
+            if ( intersect( p + EPSILON*n, rayDir_refl, MAX_DIST, p_refl, n_refl, mat_refl, false ) )
             {
-                vec3 lambda = (vec3(ix,0,iy) + vec3(0.5)) / vec3( sqrt_num_light_samples );
-                lambda = 2.0*lambda - vec3(1);
-                const vec3 lightPos = lamp_pos + lambda * light_area_radius;
-                const float distToLight = length( lightPos - p );
-                const vec3 dirToLight = (lightPos - p) / distToLight;
-                if ( intersect( p + EPSILON * dirToLight, dirToLight - 2.0 * EPSILON - lamp_delta_dist, distToLight, p_shadow, n_shadow, mat, false ) )
-                    shadowing += 0.2;
-                else
-                    shadowing += 1.0;
+                color_refl = GetSurfaceColor( p_refl, n_refl, mat_refl, rayDir_refl );
             }
         }
-        shadowing /= float( sqrt_num_light_samples * sqrt_num_light_samples );
-    }
-    else
-    {
-        // Wrong value.
-        shadowing = 0.5;
-    }
 
-    color *= shadowing;
+        color = (1.0-mat.reflectivity)*color_base + mat.reflectivity*color_refl;
+    }
 
     // Gamma correction (a.k.a. tone mapping, in simplest form).
     color = pow( color, vec3(uniforms.gamma) );
