@@ -44,7 +44,7 @@ layout(location = 0) out vec4 outColor;
 //   Screen space reflections     |   |
 //   Screen space AO              |   |
 //   Simple own SDF               | X | Check function check_refractor.
-//   Advanced own SDF             |   |
+//   Advanced own SDF             | X | Check function check_fractal.
 //   Animated SDF                 | X | Check function check_blob.
 //   Other?                       |   |
 
@@ -306,6 +306,48 @@ void check_reflector( const vec3 p, inout float min_dist, inout material mat )
 }
 
 
+void check_fractal( const vec3 p, inout float min_dist, inout material mat )
+{
+    const vec3 center = vec3( 2, -2, 2 );
+    const float sphere_radius = 0.2;
+    const vec3 size = vec3( 0.5 );
+
+    vec3 p_loc = (p - center) / size;
+
+    const float Scale = 2.0;
+    const int MaxIterations = 8;
+    const int Iterations = 1 + int(2.0*uniforms.time) % MaxIterations;
+
+    vec3 a1 = vec3( 1, 1, 1 );
+    vec3 a2 = vec3( -1, -1, 1 );
+    vec3 a3 = vec3( 1, -1, -1 );
+    vec3 a4 = vec3( -1, 1, -1 );
+    vec3 c;
+    int n = 0;
+    float dist, d;
+    while ( n < Iterations )
+    {
+        c = a1; dist = length( p_loc - a1 );
+        d = length( p_loc - a2 ); if ( d < dist ) { c = a2; dist = d; }
+        d = length( p_loc - a3 ); if ( d < dist ) { c = a3; dist = d; }
+        d = length( p_loc - a4 ); if ( d < dist ) { c = a4; dist = d; }
+        p_loc = Scale*p_loc - c*(Scale - 1.0);
+        n++;
+    }
+
+    p_loc *= pow( Scale, float(-n) );
+    dist = length( p_loc ) - sphere_radius;
+
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
+    mat.diffuse = mat.specular = vec3( 0.2, 0.2, 0.7 );
+    mat.reflectivity = 0.3;
+}
+
 /* The distance function collecting all others.
  *
  * Parameters:
@@ -328,6 +370,7 @@ float map(
 
     // Add your own objects here!
     check_reflector( p, min_dist, mat );
+    check_fractal( p, min_dist, mat );
 
     return min_dist;
 }
