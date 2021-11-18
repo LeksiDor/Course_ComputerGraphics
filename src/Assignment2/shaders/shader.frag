@@ -32,7 +32,7 @@ layout(location = 0) out vec4 outColor;
 //   PBR shading                  | X | See function BlinnPhongColor().
 //   Soft shadows                 | X | Check uniforms.shadow.
 //   Sharp reflections            | X | Check material parameter reflectivity.
-//   Glossy reflections           |   |
+//   Glossy reflections           | X | Check material parameter reflectionGlossiness.
 //   Refractions                  |   |
 //   Caustics                     |   |
 //   SDF Ambient Occlusions       |   |
@@ -99,7 +99,9 @@ const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0
 const vec3 lamp_pos = vec3( 0.0, 3.1, 3.0 );
 const float lamp_delta_dist = 0.1; // distance to discard when tracing shadow rays.
 const vec3 light_area_radius = vec3( 0.5, 0.5, 0.5 );
-const int num_light_samples = 64;
+const int num_light_samples = 25;
+
+const int num_glossy_samples = 25;
 
 
 // Good resource for finding more building blocks for distance functions:
@@ -303,6 +305,8 @@ void check_reflector( const vec3 p, inout float min_dist, inout material mat )
     mat = material_default;
     mat.diffuse = mat.specular = vec3( 0.2, 0.2, 0.7 );
     mat.reflectivity = 0.7;
+    if ( abs(p_loc.x/size.x) > abs(p_loc.z/size.z) )
+        mat.reflectionGlossiness = 20.0;
 }
 
 
@@ -468,7 +472,7 @@ float GetShadowing( const in vec3 position )
     else if ( uniforms.shadow == 2 )
     {
         // Soft shadow.
-        const float sqrt_num_light_samples = sqrt( num_light_samples );
+        const int sqrt_num_light_samples = int( sqrt( num_light_samples ) );
         float shadowing = 0.0;
         for ( int ix = 0; ix < sqrt_num_light_samples; ++ix )
         {
@@ -561,9 +565,38 @@ vec3 render( vec3 rayOri, vec3 rayDir )
             vec3 p_refl, n_refl;
             material mat_refl;
             const vec3 rayDir_refl = normalize( rayDir + 2.0*n );
-            if ( intersect( p + EPSILON*n, rayDir_refl, MAX_DIST, p_refl, n_refl, mat_refl, false ) )
+            if ( mat.reflectionGlossiness <= 0.0 )
             {
-                color_refl = GetSurfaceColor( p_refl, n_refl, mat_refl, rayDir_refl );
+                // Sharp reflection: one ray.
+                if ( intersect( p + EPSILON*n, rayDir_refl, MAX_DIST, p_refl, n_refl, mat_refl, false ) )
+                    color_refl += GetSurfaceColor( p_refl, n_refl, mat_refl, rayDir_refl );
+            }
+            else
+            {
+                // Get local surface tangent directions.
+                const vec3 dir1 = normalize( cross( rayDir_refl, n ) );
+                const vec3 dir2 = normalize( cross( rayDir_refl, dir1 ) );
+                // Glossy reflection: many rays, exponential distribution.
+                const int sqrt_num_samples = int( sqrt( num_glossy_samples ) );
+                float exp_lambda = mat.reflectionGlossiness;
+                vec3 p_refl, n_refl;
+                for ( int ix = 0; ix < sqrt_num_samples; ++ix )
+                {
+                    for ( int iy = 0; iy < sqrt_num_samples; ++iy )
+                    {
+                        vec2 t = ( vec2(ix,iy) + vec2(0.5) ) / float(sqrt_num_samples);
+                        t = 2.0*t - vec2(1.0);
+                        //const vec2 rot_angles = 0.5*PI*t;
+                        const vec2 rot_angles = 0.5*PI * sign(t)*log(abs(t))/exp_lambda;
+                        vec3 d = vec3(0);
+                        d += cos(t.x)*rayDir_refl + sin(t.x)*dir1;
+                        d += cos(t.y)*rayDir_refl + sin(t.y)*dir2;
+                        d = normalize(d);
+                        if ( intersect( p + EPSILON*n, d, MAX_DIST, p_refl, n_refl, mat_refl, false ) )
+                            color_refl += GetSurfaceColor( p_refl, n_refl, mat_refl, rayDir_refl );
+                    }
+                }
+                color_refl /= float( sqrt_num_samples * sqrt_num_samples );
             }
         }
 
