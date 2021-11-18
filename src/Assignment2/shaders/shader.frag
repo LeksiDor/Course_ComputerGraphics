@@ -683,7 +683,9 @@ vec3 render( vec3 rayOri, vec3 rayDir )
             const float cosOut = sqrt( 1.0 - sinOut*sinOut );
             const vec3 tanDir = normalize( rayDir - n*cosIn );
             const vec3 rayDir_refr = -n*cosOut + tanDir*sinOut;
-            if ( intersect( p + 0.3*rayDir_refr, rayDir_refr, MAX_DIST, p_refr, n_refr, mat_refr, false ) )
+            // Dirty hack: skip one internal intersection.
+            intersect( p + EPSILON*rayDir_refr, rayDir_refr, MAX_DIST, p_refr, n_refr, mat_refr, true );
+            if ( intersect( p_refr + EPSILON*rayDir_refr, rayDir_refr, MAX_DIST, p_refr, n_refr, mat_refr, false ) )
                 color_refr += GetSurfaceColor( p_refr, n_refr, mat_refr, rayDir_refr );
         }
         color = (1.0-mat.refractivity)*color + mat.refractivity*color_refr;
