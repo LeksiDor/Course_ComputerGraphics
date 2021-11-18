@@ -1,6 +1,6 @@
 #version 450
 
-layout(binding = 0) uniform UniformBufferObject {
+layout ( binding = 0 ) uniform UniformBufferObject {
     mat4 lookAt; // LookAt matrix.
     vec2 resolution; // Resolution of the screen.
     vec2 mouse; // Mouse coordinates.
@@ -8,6 +8,8 @@ layout(binding = 0) uniform UniformBufferObject {
     float gamma; // Gamma correction parameter.
     int shadow; // 0 = none, 1 = sharp, 2 = soft.
 } uniforms;
+
+layout( binding = 1 ) uniform sampler2D texSampler;
 
 
 layout(location = 0) out vec4 outColor;
@@ -36,7 +38,7 @@ layout(location = 0) out vec4 outColor;
 //   Refractions                  |   |
 //   Caustics                     |   |
 //   SDF Ambient Occlusions       |   |
-//   Texturing                    |   |
+//   Texturing                    | X | See function check_flag.
 //   Simple game                  |   |
 //   Progressive path tracing     |   |
 //   Basic post-processing        |   |
@@ -90,9 +92,11 @@ struct material
     float specularPower;
     float reflectivity; // 0 for no reflection, 1 for full reflection.
     float reflectionGlossiness; // Exponential distribution parameter. Values from [0,Inf).
+    int textureIdx; // Index of texture. Right now, negative for no texture, and 0 for THE texture.
+    vec2 texCoord; // Textural coordinates from [0,1]. Should not be in material for a real program.
 };
 
-const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0 );
+const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0, -1, vec2(0) );
 
 // This lamp is positioned at the hole in the roof.
 // Consider it as a point light.
@@ -311,11 +315,8 @@ void check_flag( const vec3 p, inout float min_dist, inout material mat )
         return;
 
     mat = material_default;
-    if ( fract( p_loc.x + floor( p_loc.y * 2.0 ) * 0.5 + floor( p_loc.z * 2.0 ) * 0.5 ) < 0.5 )
-        mat.diffuse = vec3( 0.0, 1.0, 1.0 );
-    else
-        mat.diffuse = vec3( 1.0, 1.0, 1.0 );
-    mat.specular = vec3( 0.2, 0.2, 0.7 );
+    mat.textureIdx = 0;
+    mat.texCoord = 0.5 * ( vec2(1) + vec2(1,-1)*(p_loc/size).xy );
 }
 
 
@@ -542,8 +543,11 @@ vec3 PhongColor( const in vec3 position, const in vec3 norm, const in material m
     const vec3 viewDir = normalize( -rayDir );
     const vec3 reflDir = 2.0 * dotLight * norm - lightDir;
     const float specularArg = clamp( dot( viewDir, reflDir ), 0, 1 );
-    vec3 color = vec3( 0 );
-    color += mat.diffuse * dotLight;
+    vec3 color = vec3(0);
+    if ( mat.textureIdx == 0 )
+        color += dotLight * texture( texSampler, mat.texCoord ).xyz;
+    else
+        color += dotLight * mat.diffuse;
     color += mat.specular * pow( specularArg, mat.specularPower );
     return color;
 }
@@ -556,8 +560,11 @@ vec3 BlinnPhongColor( const in vec3 position, const in vec3 norm, const in mater
     const vec3 halfViewLightDir = normalize( lightDir + viewDir );
     const vec3 reflDir = 2.0 * dotLight * norm - lightDir;
     const float specularArg = clamp( dot( norm, halfViewLightDir ), 0, 1 );
-    vec3 color = vec3( 0 );
-    color += mat.diffuse * dotLight;
+    vec3 color = vec3(0);
+    if ( mat.textureIdx == 0 )
+        color += dotLight * texture( texSampler, mat.texCoord ).xyz;
+    else
+        color += dotLight * mat.diffuse;
     color += mat.specular * pow( specularArg, mat.specularPower );
     return color;
 }

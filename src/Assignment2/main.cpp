@@ -1,11 +1,14 @@
 #include "ApplicationBase.h"
 #include "VulkanBase.h"
+#include "Image.h"
 
 #include <glm/glm.hpp>
 #include <chrono>
 #include <iostream>
 
 // Assignment 2.
+
+const std::string TEXTURE_PATH = std::string( ROOT_DIRECTORY ) + "/media/emperor_of_mankind.jpg";
 
 
 struct Vertex {
@@ -50,6 +53,7 @@ class AppExample : public svk::ApplicationBase
 {
 private:
     std::vector<RenderEntry> renderEntries;
+    std::shared_ptr<svk::Image> texture;
 
 public:
 
@@ -72,12 +76,19 @@ public:
         uboLayoutBinding.pImmutableSamplers = nullptr;
         uboLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-        return { uboLayoutBinding };
+        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+        samplerLayoutBinding.binding = 1;
+        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.pImmutableSamplers = nullptr;
+        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        return { uboLayoutBinding, samplerLayoutBinding };
     }
 
     virtual std::vector<VkWriteDescriptorSet> getDescriptorWrites( const VkDescriptorSet& descriptorSet, const int swapEntryIndex ) const override
     {
-        std::vector<VkWriteDescriptorSet> descriptorWrites( 1 );
+        std::vector<VkWriteDescriptorSet> descriptorWrites(2);
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = descriptorSet;
@@ -87,7 +98,25 @@ public:
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &renderEntries[swapEntryIndex].bufferInfo;
 
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &texture->Info();
+
         return descriptorWrites;
+    }
+
+    virtual void InitAppResources() override
+    {
+        texture = svk::Image::CreateFromFile( *commandPool, TEXTURE_PATH );
+    }
+
+    virtual void DestroyAppResources() override
+    {
+        texture.reset();
     }
 
     virtual void InitRenderEntries( const svk::SwapChainInfo& swapChainInfo ) override
