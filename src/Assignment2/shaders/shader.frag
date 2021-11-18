@@ -182,6 +182,14 @@ vec3 rot_z(vec3 p, float a)
     );
 }
 
+
+// Helper function to make angle from [0,2*PI).
+float regular_angle( const in float angle )
+{
+    return mod( angle, 2*PI );
+}
+
+
 /* Each object has a distance function and a material function. The distance
  * function evaluates the distance field of the object at a given point, and
  * the material function determines the surface material at a point.
@@ -190,7 +198,7 @@ vec3 rot_z(vec3 p, float a)
 
 void check_blob( const vec3 p, inout float min_dist, inout material mat )
 {
-    const vec3 center = vec3( -0.5, -2.2 + abs( sin( uniforms.time * 3.0 ) ), 2.0 );
+    const vec3 center = vec3( -0.5, -2.2 + abs( sin(regular_angle( uniforms.time*3.0 )) ), 2.0 );
     const vec3 p_loc = p - center;
     // Get spherical coordinates.
     const float rho = length( p_loc );
@@ -199,7 +207,7 @@ void check_blob( const vec3 p, inout float min_dist, inout material mat )
     const float phi = atan(p_loc.z/p_loc.x) + ( (p_loc.x < 0) ? PI : 0.0);
 
     const float t = 2.0 * uniforms.time;
-    float variation = sin(10.0*theta + 5.0*t) * (1.0-pow(h,4)) * sin(10.0*phi);
+    float variation = sin(regular_angle( 10.0*theta + 5.0*t )) * (1.0-pow(h,4)) * sin(10.0*phi);
     const float radius = 0.8 + variation * sin(t) * 0.07;
 
     const float dist = length(p_loc) - radius;
@@ -268,7 +276,7 @@ void check_crate( const vec3 p, inout float min_dist, inout material mat )
     const vec3 center = vec3( -1, -1, 5 );
     const vec3 size = vec3( 1, 2, 1 );
 
-    const vec3 p_loc = rot_y( p - center, uniforms.time );
+    const vec3 p_loc = rot_y( p - center, regular_angle(uniforms.time) );
 
     const float dist = box( p_loc, size );
     if ( dist < min_dist )
@@ -294,7 +302,7 @@ void check_flag( const vec3 p, inout float min_dist, inout material mat )
     vec3 p_loc = p - center;
     p_loc = rot_y( p_loc, 0.25*PI );
 
-    p_loc.z += sin( -10.0*uniforms.time + 5.0*p_loc.x ) * wave_size;
+    p_loc.z += sin(regular_angle( -10.0*uniforms.time + 5.0*p_loc.x )) * wave_size;
 
     const float dist = box( p_loc, size );
     if ( dist < min_dist )
@@ -320,7 +328,7 @@ void check_reflector( const vec3 p, inout float min_dist, inout material mat )
     p_loc = rot_x( p_loc, -0.1 * PI );
     p_loc = rot_y( p_loc, -0.1 * PI );
     p_loc = rot_z( p_loc, -0.1 * PI );
-    p_loc = rot_y( p_loc, -uniforms.time );
+    p_loc = rot_y( p_loc, regular_angle(-uniforms.time) );
 
     const float dist = box( p_loc, size );
     if ( dist < min_dist )
