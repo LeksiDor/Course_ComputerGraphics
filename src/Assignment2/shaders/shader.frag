@@ -23,16 +23,16 @@ layout(location = 0) out vec4 outColor;
 //-------------------------------------------------------------------------------
 // example functionality          | X | Example note: control this with var YYYY
 // Mandatory functionalities ----------------------------------------------------
-//   Perspective projection       | X | Check variable isCameraPerspective.
+//   Perspective projection       | X |
 //   Phong shading                | X | See function PhongColor().
-//   Camera movement and rotation | X | Check how uniforms.lookAt is set in main.cpp.
-//   Sharp shadows                | X | Check uniforms.shadow.
+//   Camera movement and rotation | X | See how uniforms.lookAt is set in main.cpp.
+//   Sharp shadows                | X | See uniforms.shadow.
 // Extra functionalities --------------------------------------------------------
-//   Tone mapping                 | X | Check uniforms.gamma.
+//   Tone mapping                 | X | See uniforms.gamma.
 //   PBR shading                  | X | See function BlinnPhongColor().
-//   Soft shadows                 | X | Check uniforms.shadow.
-//   Sharp reflections            | X | Check material parameter reflectivity.
-//   Glossy reflections           | X | Check material parameter reflectionGlossiness.
+//   Soft shadows                 | X | See uniforms.shadow.
+//   Sharp reflections            | X | See material parameter reflectivity.
+//   Glossy reflections           | X | See material parameter reflectionGlossiness.
 //   Refractions                  |   |
 //   Caustics                     |   |
 //   SDF Ambient Occlusions       |   |
@@ -43,9 +43,9 @@ layout(location = 0) out vec4 outColor;
 //   Advanced post-processing     |   |
 //   Screen space reflections     |   |
 //   Screen space AO              |   |
-//   Simple own SDF               | X | Check function check_refractor.
-//   Advanced own SDF             | X | Check function check_fractal.
-//   Animated SDF                 | X | Check function check_blob.
+//   Simple own SDF               | X | See function check_refractor.
+//   Advanced own SDF             | X | See function check_fractal.
+//   Animated SDF                 | X | See function check_blob.
 //   Other?                       |   |
 
 
