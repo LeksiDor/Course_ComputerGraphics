@@ -35,7 +35,7 @@ layout(location = 0) out vec4 outColor;
 //   Soft shadows                 | X | See uniforms.shadow.
 //   Sharp reflections            | X | See material parameter reflectivity.
 //   Glossy reflections           | X | See material parameter reflectionGlossiness.
-//   Refractions                  |   |
+//   Refractions                  | X | See material parameter refractivity.
 //   Caustics                     |   |
 //   SDF Ambient Occlusions       |   |
 //   Texturing                    | X | See function check_flag.
@@ -94,9 +94,11 @@ struct material
     float reflectionGlossiness; // Exponential distribution parameter. Values from [0,Inf).
     int textureIdx; // Index of texture. Right now, negative for no texture, and 0 for THE texture.
     vec2 texCoord; // Textural coordinates from [0,1]. Should not be in material for a real program.
+    float refractivity; // 0 for no refraction, 1 for full refraction.
+    float refractionIndex; // Ratio of indices in Shell's law.
 };
 
-const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0, -1, vec2(0) );
+const material material_default = material( vec3(0.8), vec3(0.8), 20.0, 0.0, 0.0, -1, vec2(0), 0.0, 1.0 );
 
 // This lamp is positioned at the hole in the roof.
 // Consider it as a point light.
@@ -345,6 +347,31 @@ void check_reflector( const vec3 p, inout float min_dist, inout material mat )
 }
 
 
+void check_refractor( const vec3 p, inout float min_dist, inout material mat )
+{
+    const vec3 center = vec3( 0, 0, 1 );
+    const vec3 size = vec3( 1.5, 1.0, 0.1 );
+    const float wave_size = 0.1;
+
+    vec3 p_loc = p - center;
+    //p_loc = rot_y( p_loc, 0.25 * PI );
+
+    p_loc.z += sin( regular_angle( -10.0 * uniforms.time + 5.0 * p_loc.x ) ) * wave_size;
+
+    const float dist = box( p_loc, size );
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
+    mat.refractivity = 0.9;
+    mat.refractionIndex = 1.2;
+    //mat.textureIdx = 0;
+    //mat.texCoord = 0.5 * (vec2( 1 ) + vec2( 1, -1 ) * (p_loc / size).xy);
+}
+
+
 void check_fractal( const vec3 p, inout float min_dist, inout material mat )
 {
     const vec3 center = vec3( 2, -2, 2 );
@@ -409,6 +436,7 @@ float map(
 
     // Add your own objects here!
     check_reflector( p, min_dist, mat );
+    check_refractor( p, min_dist, mat );
     check_fractal( p, min_dist, mat );
     check_flag( p, min_dist, mat );
 
@@ -598,12 +626,12 @@ vec3 render( vec3 rayOri, vec3 rayDir )
     vec3 p, n;
     if ( intersect( rayOri, rayDir, MAX_DIST, p, n, mat, false ) )
     {
-        const vec3 color_base = GetSurfaceColor( p, n, mat, rayDir );
+        color = GetSurfaceColor( p, n, mat, rayDir );
 
+        // Reflection.
         vec3 color_refl = vec3(0);
         if ( mat.reflectivity > 0 )
         {
-            color *= (1.0 - mat.reflectivity);
             vec3 p_refl, n_refl;
             material mat_refl;
             const vec3 rayDir_refl = normalize( rayDir + 2.0*n );
@@ -641,8 +669,24 @@ vec3 render( vec3 rayOri, vec3 rayDir )
                 color_refl /= float( sqrt_num_samples * sqrt_num_samples );
             }
         }
+        color = (1.0-mat.reflectivity)*color + mat.reflectivity*color_refl;
 
-        color = (1.0-mat.reflectivity)*color_base + mat.reflectivity*color_refl;
+        // Refraction.
+        vec3 color_refr = vec3(0);
+        if ( mat.refractivity > 0.0 )
+        {
+            vec3 p_refr, n_refr;
+            material mat_refr;
+            const float cosIn = dot( rayDir, n );
+            const float sinIn = sqrt( 1.0 - cosIn*cosIn );
+            const float sinOut = sinIn * mat.refractionIndex;
+            const float cosOut = sqrt( 1.0 - sinOut*sinOut );
+            const vec3 tanDir = normalize( rayDir - n*cosIn );
+            const vec3 rayDir_refr = -n*cosOut + tanDir*sinOut;
+            if ( intersect( p + 0.3*rayDir_refr, rayDir_refr, MAX_DIST, p_refr, n_refr, mat_refr, false ) )
+                color_refr += GetSurfaceColor( p_refr, n_refr, mat_refr, rayDir_refr );
+        }
+        color = (1.0-mat.refractivity)*color + mat.refractivity*color_refr;
     }
 
     // Gamma correction (a.k.a. tone mapping, in simplest form).
