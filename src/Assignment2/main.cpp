@@ -3,6 +3,7 @@
 #include "Image.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 #include <chrono>
 #include <iostream>
 
@@ -112,6 +113,17 @@ public:
     virtual void InitAppResources() override
     {
         texture = svk::Image::CreateFromFile( *commandPool, TEXTURE_PATH );
+
+        std::cout << std::endl << std::endl
+            << "Seems like the program has been loaded." << std::endl
+            << "Use the following controls to navigate the camera." << std::endl
+            << "W-A-S-D : movement like in games." << std::endl
+            << "Q-E : rotation left-right." << std::endl
+            << "R-F : movement up-down." << std::endl
+            << "T-G : rotation up-down." << std::endl
+            << std::endl
+            << "Enjoy! Please contact me if you fail to run this." << std::endl
+            << std::endl;
     }
 
     virtual void DestroyAppResources() override
@@ -163,20 +175,40 @@ public:
         int width, height;
         glfwGetFramebufferSize( window, &width, &height );
 
-        // Camera matrix.
-        const bool isAnimateCamera = true;
-        glm::vec3 up0 = glm::vec3( 0, 1, 0 );
-        glm::vec3 eye = glm::vec3( 0, 0, -2 );
-        glm::vec3 target = glm::vec3( 0, 0, 2 );
-        if ( isAnimateCamera )
-        {
-            const float arg = 2.0f * time;
-            eye.x = 2.0f * std::sin( arg );
-            eye.y = std::cos( arg );
-        }
-        const glm::vec3 forward = glm::normalize( target - eye );
+        // Saved camera parameters.
+        static glm::vec3 eye = glm::vec3(0,0,-2);
+        static glm::vec3 forward = glm::vec3(0,0,1);
+        const glm::vec3 up0 = glm::vec3(0,1,0);
+
+        // Update camera positioning from keys.
+        float rot_hor = 0.0f;
+        float rot_ver = 0.0f;
+        if ( glfwGetKey( window, GLFW_KEY_Q ) )
+            rot_hor -= 0.05;
+        if ( glfwGetKey( window, GLFW_KEY_E ) )
+            rot_hor += 0.05;
+        if ( glfwGetKey( window, GLFW_KEY_T ) )
+            rot_ver -= 0.05;
+        if ( glfwGetKey( window, GLFW_KEY_G ) )
+            rot_ver += 0.05;
+
+        forward = glm::rotate( forward, rot_hor, up0 );
         const glm::vec3 right = glm::normalize( glm::cross( up0, forward ) );
+        forward = glm::rotate( forward, rot_ver, right );
         const glm::vec3 up = glm::normalize( glm::cross( forward, right ) );
+
+        if ( glfwGetKey( window, GLFW_KEY_A ) )
+            eye -= 0.1f*right;
+        if ( glfwGetKey( window, GLFW_KEY_D ) )
+            eye += 0.1f*right;
+        if ( glfwGetKey( window, GLFW_KEY_W ) )
+            eye += 0.1f*forward;
+        if ( glfwGetKey( window, GLFW_KEY_S ) )
+            eye -= 0.1f*forward;
+        if ( glfwGetKey( window, GLFW_KEY_R ) )
+            eye += 0.1f*up;
+        if ( glfwGetKey( window, GLFW_KEY_F ) )
+            eye -= 0.1f*up;
 
         UniformsStruct uniforms{};
         uniforms.resolution = glm::vec2( width, height );

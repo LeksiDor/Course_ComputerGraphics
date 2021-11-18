@@ -39,7 +39,7 @@ layout(location = 0) out vec4 outColor;
 //   Caustics                     |   |
 //   SDF Ambient Occlusions       |   |
 //   Texturing                    | X | See function check_flag.
-//   Simple game                  |   |
+//   Simple game                  | X | Camera positioning using keys. Check console output for more info.
 //   Progressive path tracing     |   |
 //   Basic post-processing        |   |
 //   Advanced post-processing     |   |
@@ -48,7 +48,7 @@ layout(location = 0) out vec4 outColor;
 //   Simple own SDF               | X | See function check_refractor.
 //   Advanced own SDF             | X | See function check_fractal.
 //   Animated SDF                 | X | See function check_blob, check_flag.
-//   Other?                       |   |
+//   Other?                       | X | Custom C++ wrapping.
 
 
 
