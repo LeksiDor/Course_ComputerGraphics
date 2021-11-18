@@ -45,7 +45,7 @@ layout(location = 0) out vec4 outColor;
 //   Screen space AO              |   |
 //   Simple own SDF               | X | See function check_refractor.
 //   Advanced own SDF             | X | See function check_fractal.
-//   Animated SDF                 | X | See function check_blob.
+//   Animated SDF                 | X | See function check_blob, check_flag.
 //   Other?                       |   |
 
 
@@ -285,6 +285,32 @@ void check_crate( const vec3 p, inout float min_dist, inout material mat )
 }
 
 
+void check_flag( const vec3 p, inout float min_dist, inout material mat )
+{
+    const vec3 center = vec3( -2, 2, 3 );
+    const vec3 size = vec3( 1.5, 1.0, 0.1 );
+    const float wave_size = 0.1;
+
+    vec3 p_loc = p - center;
+    p_loc = rot_y( p_loc, 0.25*PI );
+
+    p_loc.z += sin( -10.0*uniforms.time + 5.0*p_loc.x ) * wave_size;
+
+    const float dist = box( p_loc, size );
+    if ( dist < min_dist )
+        min_dist = dist;
+    else
+        return;
+
+    mat = material_default;
+    if ( fract( p_loc.x + floor( p_loc.y * 2.0 ) * 0.5 + floor( p_loc.z * 2.0 ) * 0.5 ) < 0.5 )
+        mat.diffuse = vec3( 0.0, 1.0, 1.0 );
+    else
+        mat.diffuse = vec3( 1.0, 1.0, 1.0 );
+    mat.specular = vec3( 0.2, 0.2, 0.7 );
+}
+
+
 void check_reflector( const vec3 p, inout float min_dist, inout material mat )
 {
     const vec3 center = vec3( -2, -2, 2.5 );
@@ -375,6 +401,7 @@ float map(
     // Add your own objects here!
     check_reflector( p, min_dist, mat );
     check_fractal( p, min_dist, mat );
+    check_flag( p, min_dist, mat );
 
     return min_dist;
 }
